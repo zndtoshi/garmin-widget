@@ -1,0 +1,10 @@
+{
+  "dailySleepDTO": {
+    "sleepTimeSeconds": 0,
+    "sleepScores": {
+      "overall": {
+        "value": 0
+      }
+    }
+  }
+}

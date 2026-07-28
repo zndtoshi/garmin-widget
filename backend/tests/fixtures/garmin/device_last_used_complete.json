@@ -1,0 +1,10 @@
+{
+  "userDeviceId": 1,
+  "userProfileNumber": 1,
+  "lastUsedDeviceName": "test-device",
+  "lastUsedDeviceUploadTime": "2026-07-28T05:35:00.000Z",
+  "lastUsedDeviceApplicationKey": "test-app",
+  "applicationNumber": 1,
+  "imageUrl": "https://example.invalid/device.png",
+  "released": true
+}

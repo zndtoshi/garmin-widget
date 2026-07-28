@@ -65,7 +65,7 @@ Delivery phases and acceptance criteria live in [`docs/implementation-plan.md`](
 
 | Responsibility | Role |
 |----------------|------|
-| **Configuration** | Load env-based settings (bearer token, data directory, cooldown, Garmin bootstrap credentials, logging level). No secrets in code. |
+| **Configuration** | Load env-based settings (bearer token, data directory, cooldown, IANA timezone for calendar-date selection, Garmin bootstrap credentials, logging level). No secrets in code. |
 | **API authentication** | Validate `Authorization: Bearer <private widget token>` on widget endpoints. Distinct from Garmin auth. |
 | **REST API** | HTTP surface only: accept requests, return normalized widget payloads / health status. Must not depend on raw Garmin response structures. |
 | **Garmin authentication / session management** | Bootstrap and renew reusable Garmin session tokens; persist them under the data directory. |
@@ -129,7 +129,7 @@ Version-one public JSON uses camelCase and explicit nullability for metrics that
 
 | Field | Type | Notes |
 |-------|------|-------|
-| `schemaVersion` | number | Start at `1` |
+| `schemaVersion` | number | Fixed at `1` for version one |
 | `date` | string \| null | `YYYY-MM-DD` metric date |
 | `sleepScore` | number \| null | Sleep score |
 | `sleepDurationSeconds` | number \| null | Sleep duration |
@@ -142,7 +142,12 @@ Version-one public JSON uses camelCase and explicit nullability for metrics that
 | `garminSyncAt` | string \| null | ISO-8601 UTC timestamp |
 | `refreshedAt` | string \| null | ISO-8601 UTC timestamp |
 | `stale` | boolean | Indicates stale cached data |
-| `refreshStatus` | string | Example: `SUCCESS`, `COOLDOWN`, `UPSTREAM_UNAVAILABLE` |
-| `source` | string | Example: `garmin-connect-unofficial` |
+| `refreshStatus` | string | One of `SUCCESS`, `CACHE_HIT`, `COOLDOWN`, `UPSTREAM_UNAVAILABLE`, `NO_DATA` |
+| `source` | string | Fixed at `garmin-connect-unofficial` |
 
 See [`shared/widget-response.example.json`](shared/widget-response.example.json) for the example payload.
+
+Local backend helpers for Phase 3 metric work:
+
+- `uv run python -m app.garmin.auth_check` — verify reusable Garmin session
+- `uv run python -m app.garmin.metrics_check [--date YYYY-MM-DD]` — fetch and print normalized widget-shaped JSON (defaults to today's date in `GARMIN_WIDGET_TIMEZONE`)

@@ -18,7 +18,7 @@ Garmin Connect
 
 ## Current status
 
-Backend foundation is in progress. `GET /health`, startup configuration, logging, sanitized errors, tests, CI, and Docker scaffolding are implemented. Garmin integration, widget-authenticated endpoints, caching, cooldown logic, and Render deployment are not complete yet.
+Backend foundation through local metric normalization is in progress. `GET /health`, configuration, logging, sanitized errors, Garmin session management, metric fetch/normalization, tests, CI, and Docker scaffolding are implemented. Widget-authenticated endpoints, caching, cooldown logic, Android, and Render deployment are not complete yet.
 
 ## Repository layout
 

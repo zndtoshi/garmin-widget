@@ -1,0 +1,10 @@
+{
+  "dailySleepDTO": {
+    "sleepTimeSeconds": "not-a-number",
+    "sleepScores": {
+      "overall": {
+        "value": {"nested": true}
+      }
+    }
+  }
+}

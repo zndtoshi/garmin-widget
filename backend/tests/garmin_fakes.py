@@ -78,3 +78,63 @@ class FakeGarminFactory:
             self.client.password = password
             return self.client
         return FakeGarminClient(username=username, password=password)
+
+
+class FakeMetricsClient:
+    """In-memory Garmin client used only for metric-adapter tests."""
+
+    def __init__(
+        self,
+        *,
+        sleep: object | None = None,
+        hrv: object | None = None,
+        body_battery: object | None = None,
+        rhr: object | None = None,
+        stress: object | None = None,
+        stats: object | None = None,
+        training_readiness: object | None = None,
+        device_last_used: object | None = None,
+        errors: dict[str, Exception] | None = None,
+    ) -> None:
+        self.sleep = sleep
+        self.hrv = hrv
+        self.body_battery = body_battery
+        self.rhr = rhr
+        self.stress = stress
+        self.stats = stats
+        self.training_readiness = training_readiness
+        self.device_last_used = device_last_used
+        self.errors = errors or {}
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def get_sleep_data(self, cdate: str) -> object:
+        return self._invoke("get_sleep_data", self.sleep, cdate)
+
+    def get_hrv_data(self, cdate: str) -> object:
+        return self._invoke("get_hrv_data", self.hrv, cdate)
+
+    def get_body_battery(
+        self, startdate: str, enddate: str | None = None
+    ) -> object:
+        return self._invoke("get_body_battery", self.body_battery, startdate, enddate)
+
+    def get_rhr_day(self, cdate: str) -> object:
+        return self._invoke("get_rhr_day", self.rhr, cdate)
+
+    def get_stress_data(self, cdate: str) -> object:
+        return self._invoke("get_stress_data", self.stress, cdate)
+
+    def get_stats(self, cdate: str) -> object:
+        return self._invoke("get_stats", self.stats, cdate)
+
+    def get_training_readiness(self, cdate: str) -> object:
+        return self._invoke("get_training_readiness", self.training_readiness, cdate)
+
+    def get_device_last_used(self) -> object:
+        return self._invoke("get_device_last_used", self.device_last_used)
+
+    def _invoke(self, name: str, payload: object, *args: object) -> object:
+        self.calls.append((name, args))
+        if name in self.errors:
+            raise self.errors[name]
+        return payload

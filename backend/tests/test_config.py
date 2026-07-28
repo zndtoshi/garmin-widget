@@ -88,3 +88,11 @@ def test_local_defaults_are_valid() -> None:
     settings.validate_runtime()
     assert settings.app_env == AppEnvironment.LOCAL
     assert settings.refresh_cooldown_seconds == 60
+    assert settings.timezone == "Europe/Bucharest"
+
+
+def test_invalid_timezone_is_rejected() -> None:
+    settings = Settings(timezone="Not/A_Real_Zone")
+
+    with pytest.raises(ValueError, match="GARMIN_WIDGET_TIMEZONE"):
+        settings.validate_runtime()

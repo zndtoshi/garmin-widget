@@ -3,6 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -29,12 +30,21 @@ class Settings(BaseSettings):
     widget_bearer_token: SecretStr | None = None
     data_dir: Path = Path("./data")
     refresh_cooldown_seconds: int = 60
+    # Used only to choose the Garmin calendar date; timestamps remain UTC.
+    timezone: str = "Europe/Bucharest"
     garmin_username: str | None = None
     garmin_password: SecretStr | None = None
 
     def validate_runtime(self) -> None:
         if self.refresh_cooldown_seconds < 0:
             raise ValueError("GARMIN_WIDGET_REFRESH_COOLDOWN_SECONDS must be >= 0")
+
+        try:
+            ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError(
+                "GARMIN_WIDGET_TIMEZONE must be a valid IANA timezone name"
+            ) from exc
 
         if self.app_env == AppEnvironment.PRODUCTION:
             token = _strip_secret(self.widget_bearer_token)

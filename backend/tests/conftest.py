@@ -24,6 +24,15 @@ def restore_environment() -> Iterator[None]:
     os.environ.update(original)
 
 
+@pytest.fixture(autouse=True)
+def isolate_from_repo_dotenv(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    """Keep Settings from reading the developer's ignored backend/.env."""
+    monkeypatch.chdir(tmp_path_factory.mktemp("settings-cwd"))
+
+
 @pytest.fixture()
 def client() -> TestClient:
     return TestClient(create_app())
