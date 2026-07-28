@@ -1,12 +1,12 @@
-# garmin-widget — Project Specification
+﻿# garmin-widget - Project Specification
 
-Private personal-use project. This document defines architecture, API, payload schema, backend responsibilities, and milestones. **No production code exists yet.**
+Private personal-use project. This document defines architecture, API, payload schema, backend responsibilities, and milestones.
 
 Related docs: [README.md](README.md), [docs/architecture.md](docs/architecture.md), [shared/widget-response.example.json](shared/widget-response.example.json).
 
 ## Architecture
 
-```
+```text
 Android home-screen widget
      ↓ HTTPS bearer authentication
 Private FastAPI service on Render
@@ -17,6 +17,28 @@ Garmin Connect
 The Android widget never talks to Garmin directly. It only calls the private backend over HTTPS with a bearer token. The backend alone holds Garmin session material and talks to Garmin Connect through an unofficial client.
 
 See [docs/architecture.md](docs/architecture.md) for Mermaid diagrams (system, refresh flows, auth boundaries, deployment).
+
+## Current implementation state
+
+Milestone 2 is in progress.
+
+Implemented now:
+
+- FastAPI app skeleton and route wiring
+- `GET /health` endpoint returning typed response model
+- Local tests for the health endpoint
+- `uv` project configuration and lockfile
+- Dockerfile and `.dockerignore`
+
+Not implemented yet:
+
+- Garmin authentication/session handling
+- Garmin client
+- Metric normalization logic
+- Cache/persistence
+- API authentication for widget endpoints
+- Widget endpoints beyond `/health`
+- Render deployment completion
 
 ## Goals
 
@@ -40,10 +62,12 @@ See [docs/architecture.md](docs/architecture.md) for Mermaid diagrams (system, r
 
 ### Stack
 
-- Python
+- Python 3.12+
 - FastAPI
-- Unofficial [`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect) library
+- Pydantic
+- Uvicorn
 - Dependency management with **[uv](https://github.com/astral-sh/uv)** via `backend/pyproject.toml` and `backend/uv.lock`
+- Unofficial [`python-garminconnect`](https://github.com/cyberjunky/python-garminconnect) library (planned for Milestone 3)
 - **Do not use `requirements.txt`.**
 
 ### Backend responsibilities (separated)
@@ -59,7 +83,7 @@ See [docs/architecture.md](docs/architecture.md) for Mermaid diagrams (system, r
 | **Cache / persistence** | Store latest successful normalized payload and minimal refresh metadata; serve cache for `/latest`, cooldown hits, and failure fallback. |
 | **Error handling** | Map failures to safe client messages; set `stale` / `refreshStatus`; never leak credentials, tokens, stack traces, or sensitive upstream bodies. |
 
-Layering rule: **REST API → normalized models ← metric normalization ← Garmin client ← session management**. The API never consumes raw Garmin shapes.
+Layering rule: **REST API -> normalized models <- metric normalization <- Garmin client <- session management**. The API never consumes raw Garmin shapes.
 
 ### Data directory (persistent storage)
 
@@ -138,88 +162,44 @@ Public JSON uses camelCase. Fields that Garmin may omit are **nullable**. Exampl
 | `refreshStatus` | string | e.g. `SUCCESS`, cooldown, or error statuses |
 | `source` | string | e.g. `garmin-connect-unofficial` |
 
-## Android app (planned)
-
-Not implemented yet. Planned characteristics:
-
-- **Language:** Kotlin
-- **Widget UI:** Jetpack Glance
-- **Refresh:** Refresh button calls `POST /api/v1/widget/refresh`
-- **Deep link:** Main widget body opens Garmin Connect
-- **Offline / error:** Retain last successful **local** values on error
-- **Timestamp:** Display a last-updated timestamp
-- **Polling:** No automatic frequent polling
-
 ## Deployment (planned)
 
 - Backend hosted as a private FastAPI service on **Render**
-- HTTPS only for widget ↔ backend
+- HTTPS only for widget <-> backend
 - Environment-based configuration for bearer token, data directory, cooldown, and Garmin session material (never committed)
 - Persistent disk/volume for session tokens + latest cache + minimal refresh metadata only
 
-## Repository layout
-
-```
-garmin-widget/
-├── backend/
-│   ├── app/
-│   ├── tests/
-│   ├── Dockerfile
-│   ├── README.md
-│   └── pyproject.toml
-├── android/
-├── docs/
-│   └── architecture.md
-├── shared/
-│   └── widget-response.example.json
-├── .github/
-│   └── workflows/
-├── .gitignore
-├── README.md
-└── PROJECT.md
-```
-
-## Security checklist
-
-- [ ] No Garmin username/password in the repo
-- [ ] No Garmin session tokens in the repo
-- [ ] No private widget bearer token in the repo
-- [ ] No local cache dumps or persistent data directories in the repo
-- [ ] No `.env` / secret environment files committed
-- [ ] Widget API never returns Garmin credentials, session tokens, stack traces, or sensitive upstream responses
-- [ ] Unofficial Garmin client breakage is accepted as an operational risk
-
 ## Milestone plan
 
-### Milestone 1 — Specification and structure
+### Milestone 1 - Specification and structure
 
 - Specification (`PROJECT.md`, `README.md`)
 - Repository structure (monorepo placeholders)
 - Architecture documentation (`docs/architecture.md`)
 
-### Milestone 2 — Minimal deployable API shell
+### Milestone 2 - Minimal deployable API shell (in progress)
 
 - Minimal FastAPI backend
 - `GET /health`
 - Local tests
 - Dockerfile
-- Render deployment
+- Render deployment (not complete yet)
 
-### Milestone 3 — Local Garmin access (private)
+### Milestone 3 - Local Garmin access (private)
 
 - Local Garmin authentication
 - Reusable session-token persistence
 - Fetch and inspect Garmin data locally
 - **No** public Garmin-backed endpoint yet
 
-### Milestone 4 — Normalized widget API
+### Milestone 4 - Normalized widget API
 
 - Metric normalization
 - Persistent cache
 - Authenticated `GET /api/v1/widget/latest` and `POST /api/v1/widget/refresh`
 - Cooldown, concurrent-request locking/deduplication, and error fallback
 
-### Milestone 5 — Android widget
+### Milestone 5 - Android widget
 
 - Kotlin Android app
 - Jetpack Glance widget
@@ -227,10 +207,8 @@ garmin-widget/
 - Manual refresh interaction
 - Open Garmin Connect from widget body
 
-### Milestone 6 — Polish
+### Milestone 6 - Polish
 
 - Adaptive widget sizes
 - Configurable displayed metrics
 - Polish and reliability testing
-
-This repository currently contains **structure and specification only** (Milestone 1).

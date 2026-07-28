@@ -1,4 +1,4 @@
-# garmin-widget
+﻿# garmin-widget
 
 Private personal-use project: an Android home-screen widget that shows a small set of Garmin Connect metrics through a private FastAPI backend.
 
@@ -6,11 +6,11 @@ This repository is **not** a public product. It is intended for a single private
 
 ## Goal
 
-Tap refresh on an Android widget → private backend fetches (or returns cached) normalized Garmin metrics → widget displays them. No automatic frequent polling.
+Tap refresh on an Android widget -> private backend fetches (or returns cached) normalized Garmin metrics -> widget displays them. No automatic frequent polling.
 
 ## High-level architecture
 
-```
+```text
 Android home-screen widget
      ↓ HTTPS bearer authentication
 Private FastAPI service on Render
@@ -22,9 +22,21 @@ The widget never talks to Garmin directly and never receives Garmin credentials 
 
 ## Current status
 
-**Milestone 1 in progress:** specification, repository structure, and architecture documentation only.
+**Milestone 2 in progress:** minimal FastAPI backend shell is being implemented.
 
-There is **no production code yet**. The `backend/` and `android/` trees are structural placeholders. Do not expect a running API or installable app from this commit set.
+Implemented so far:
+
+- Backend app initialization and routing structure
+- `GET /health` endpoint with typed response model
+- Local tests and lint configuration
+- Dockerfile and `.dockerignore`
+
+Not implemented yet:
+
+- Garmin integration
+- Widget-authenticated endpoints (`/api/v1/widget/*`)
+- Cache/persistence and cooldown behavior
+- Render deployment completion
 
 ## Planned milestones
 
@@ -39,14 +51,16 @@ There is **no production code yet**. The `backend/` and `android/` trees are str
 
 ## Repository layout
 
-```
+```text
 garmin-widget/
-├── backend/                 # FastAPI service (not implemented yet)
+├── backend/
 │   ├── app/
 │   ├── tests/
 │   ├── Dockerfile
+│   ├── .dockerignore
 │   ├── README.md
-│   └── pyproject.toml       # uv-managed; uv.lock added when deps exist
+│   ├── pyproject.toml
+│   └── uv.lock
 ├── android/                 # Kotlin / Jetpack Glance app (not implemented yet)
 ├── docs/
 │   └── architecture.md
@@ -61,10 +75,10 @@ garmin-widget/
 
 ## Dependency management (backend)
 
-Python dependencies will be managed with **[uv](https://github.com/astral-sh/uv)** using:
+Python dependencies are managed with **[uv](https://github.com/astral-sh/uv)** using:
 
 - `backend/pyproject.toml`
-- `backend/uv.lock` (generated later; commit the lockfile when dependencies exist)
+- `backend/uv.lock`
 
 Do **not** use `requirements.txt`.
 
@@ -75,7 +89,7 @@ Do **not** use `requirements.txt`.
 | `GET` | `/health` | Service status; does **not** contact Garmin |
 | `GET` | `/api/v1/widget/latest` | Last successful cache; does **not** contact Garmin |
 | `POST` | `/api/v1/widget/refresh` | Manual refresh (cooldown, lock, cache, fallback) |
-| `GET` | `/api/v1/widget/history` | **Future only** — out of scope for version one |
+| `GET` | `/api/v1/widget/history` | **Future only** - out of scope for version one |
 
 Widget endpoints require `Authorization: Bearer <private widget token>`. `/health` may be unauthenticated.
 
@@ -83,10 +97,11 @@ Widget endpoints require `Authorization: Bearer <private widget token>`. `/healt
 
 - **Unofficial Garmin access may break** if Garmin changes its private APIs. This project depends on an unofficial client (`python-garminconnect`) and is inherently fragile.
 - **Never commit** Garmin credentials, session tokens, the private widget bearer token, local caches, or `.env` files. See `.gitignore`.
-- Persistent Render storage in v1 holds only session tokens, the latest normalized widget cache, and minimal refresh metadata — **not** long-term health history.
+- Persistent Render storage in v1 holds only session tokens, the latest normalized widget cache, and minimal refresh metadata - **not** long-term health history.
 
 ## Further reading
 
-- [PROJECT.md](PROJECT.md) — full specification and milestones
-- [docs/architecture.md](docs/architecture.md) — diagrams and component boundaries
-- [shared/widget-response.example.json](shared/widget-response.example.json) — example widget payload
+- [PROJECT.md](PROJECT.md) - full specification and milestones
+- [docs/architecture.md](docs/architecture.md) - diagrams and component boundaries
+- [shared/widget-response.example.json](shared/widget-response.example.json) - example widget payload
+- [backend/README.md](backend/README.md) - backend local and Docker commands
