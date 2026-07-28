@@ -110,7 +110,7 @@ sequenceDiagram
 
 `GET /api/v1/widget/latest` always returns the last successful cache and **never** contacts Garmin. `GET /health` returns service status and **never** contacts Garmin. Widget routes require `Authorization: Bearer <private widget token>`; `/health` does not.
 
-Refresh coordination currently uses a **process-scoped** lock keyed by data directory. Separately constructed services in one process that share `DATA_DIR` still deduplicate refreshes. This does **not** coordinate multiple OS processes or Render instances. Deploy the first Render instance with a single worker.
+Refresh coordination currently uses a **process-scoped** lock keyed by data directory. Separately constructed services in one process that share `DATA_DIR` still deduplicate refreshes. This does **not** coordinate multiple OS processes or Render instances. Deploy the first Render instance with a single worker and a persistent disk (see [render-deployment.md](render-deployment.md)). Configuration is prepared via root `render.yaml`; live Render/domain setup is not completed by the repository alone.
 
 ## Garmin failure fallback flow
 

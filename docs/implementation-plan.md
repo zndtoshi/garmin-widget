@@ -178,6 +178,10 @@ This phase proves Garmin access locally. It must not expose a Garmin-backed publ
 
 ## Phase 6: Deploy and validate the backend
 
+### Progress note
+
+Repository and deployment **preparation** are complete: Render Blueprint, single-worker container entrypoint, CI Docker build validation (no push), and this runbook exist. Still pending operator work: live Render service creation, persistent-disk attach in production, Garmin session bootstrap on Render, private end-to-end verification, and custom domain/DNS. Do not treat Phase 6 as finished until those live steps succeed.
+
 ### Work
 
 1. Create the Render service with HTTPS and one backend worker initially.

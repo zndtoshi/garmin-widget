@@ -9,6 +9,7 @@ __pycache__/
 venv/
 .env
 .env.*
+!.env.example
 *.log
 *.sqlite
 *.db
@@ -16,3 +17,10 @@ venv/
 .pytype/
 coverage/
 htmlcov/
+tests/
+data/
+**/data/
+dif.txt
+commands.txt
+*.md
+!README.md

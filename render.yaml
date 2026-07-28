@@ -1,0 +1,35 @@
+# Render Blueprint for the private garmin-widget backend.
+# Does not create paid-plan, region, repository URL, custom domain, or secret values.
+# Persistent disk forces a single instance; refresh locking is also process-local.
+services:
+  - type: web
+    name: garmin-widget-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    numInstances: 1
+    disk:
+      name: garmin-widget-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: GARMIN_WIDGET_APP_ENV
+        value: production
+      - key: GARMIN_WIDGET_DATA_DIR
+        value: /var/data
+      - key: GARMIN_WIDGET_TIMEZONE
+        value: Europe/Bucharest
+      - key: GARMIN_WIDGET_REFRESH_COOLDOWN_SECONDS
+        value: "60"
+      - key: GARMIN_WIDGET_LOG_LEVEL
+        value: INFO
+      - key: GARMIN_WIDGET_SERVICE_NAME
+        value: garmin-widget-backend
+      # Manual secrets — enter only in the Render Dashboard; never commit values.
+      - key: GARMIN_WIDGET_WIDGET_BEARER_TOKEN
+        sync: false
+      - key: GARMIN_WIDGET_GARMIN_USERNAME
+        sync: false
+      - key: GARMIN_WIDGET_GARMIN_PASSWORD
+        sync: false

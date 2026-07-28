@@ -18,7 +18,7 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend Phases 1–5 are implemented for local/private use. Android and Render deployment are not complete.
+Backend Phases 1–6 configuration are implemented for local/private use. Render Blueprint and deployment runbook exist, but no live Render service or custom domain has been completed. Android is not started.
 
 Implemented now:
 
@@ -34,13 +34,15 @@ Implemented now:
 - Garmin authentication/session lifecycle and filesystem token store
 - Metric adapter, normalization, and public `WidgetResponse` model
 - Atomic latest-widget snapshot persistence and refresh coordination
+- Render-oriented container entrypoint (`PORT`, one worker; proxy headers disabled)
+- Root `render.yaml` Blueprint and [`docs/render-deployment.md`](docs/render-deployment.md) runbook
 - Local CLI auth/metrics checks
-- Local tests, `uv` lockfile, Dockerfile, backend CI
+- Local tests, `uv` lockfile, Dockerfile, backend CI (including Docker build validation)
 
 Not implemented yet:
 
+- Live Render deployment / custom domain / DNS
 - Android/Glance widget
-- Render deployment and custom domain
 - Multi-process/distributed refresh locking
 - `/api/v1/widget/history` (future only)
 

@@ -18,7 +18,7 @@ Garmin Connect
 
 ## Current status
 
-Backend foundation through Phase 5 authenticated widget HTTP API is implemented. `GET /health`, bearer-protected `/api/v1/widget/latest` and `/refresh`, Garmin session/metrics, atomic snapshot cache, refresh coordination, tests, CI, and Docker scaffolding are in place. Android and Render deployment are not complete yet. First deployment must remain one worker/instance.
+Backend foundation through Phase 6 deployment **preparation** is implemented. Health + authenticated widget API, Garmin session/metrics, atomic snapshot cache, Render Blueprint (`render.yaml`), container entrypoint, CI Docker build validation, and the [Render runbook](docs/render-deployment.md) are in place. A live Render service, custom domain/DNS, and Android are **not** complete yet. First deployment must remain one worker/instance with a persistent disk.
 
 ## Repository layout
 
@@ -36,11 +36,13 @@ garmin-widget/
 |- android/
 |- docs/
 |  |- architecture.md
-|  `- implementation-plan.md
+|  |- implementation-plan.md
+|  `- render-deployment.md
 |- shared/
 |  `- widget-response.example.json
 |- .github/
 |  `- workflows/
+|- render.yaml
 |- .gitignore
 |- README.md
 `- PROJECT.md
@@ -76,4 +78,5 @@ Do **not** use `requirements.txt`.
 - [PROJECT.md](PROJECT.md)
 - [docs/architecture.md](docs/architecture.md)
 - [docs/implementation-plan.md](docs/implementation-plan.md)
+- [docs/render-deployment.md](docs/render-deployment.md)
 - [backend/README.md](backend/README.md)

@@ -2,7 +2,7 @@
 
 Private FastAPI service for the `garmin-widget` Android client.
 
-**Status:** Phase 5 authenticated widget HTTP API is implemented. `/health` is public; `/api/v1/widget/*` requires a private bearer token. Android and Render deployment are not complete. First deployment must use one worker/instance.
+**Status:** Phase 6 deployment configuration is prepared (Render Blueprint, single-worker container entrypoint, runbook). Authenticated widget HTTP API is implemented. No live Render deployment or custom domain has been completed. Android is not started. First deployment must use one worker/instance with a persistent disk at `/var/data`.
 
 ## Implemented now
 
@@ -21,6 +21,8 @@ Private FastAPI service for the `garmin-widget` Android client.
 - Garmin metrics adapter + internal/public models + normalization
 - Filesystem persistence for one atomic latest-widget snapshot under `DATA_DIR/widget/`
 - Process-scoped refresh orchestration with cooldown, lock/deduplication, and stale-cache fallback
+- Render-compatible container entrypoint (`/app/.venv/bin/python -m app.server`) honoring `PORT` with one Uvicorn worker and proxy headers disabled
+- Root `render.yaml` Blueprint and operator runbook (`docs/render-deployment.md`)
 - Local CLI auth check: `uv run python -m app.garmin.auth_check`
 - Local CLI metrics check: `uv run python -m app.garmin.metrics_check [--date YYYY-MM-DD]`
 - Local tests for health, auth/API, config, logging, errors, Garmin session, metric normalization, and refresh/cache behavior
@@ -263,13 +265,27 @@ From the `backend` directory:
 uv run ruff check .
 ```
 
-## Build Docker image
+## Docker image pins
 
-From the repository root:
+- Python base: `python:3.12.11-slim-bookworm` (bump the patch tag intentionally when upgrading)
+- `uv`: copied from `ghcr.io/astral-sh/uv:0.11.32` (bump when upgrading the package manager)
+- Runtime install uses `uv sync --frozen --no-dev`
+- Runtime start uses `/app/.venv/bin/python -m app.server` (no `uv run` at startup)
+- Proxy/forwarded header trust is disabled; routes do not depend on client IP/scheme from `X-Forwarded-*`
+
+Build from the repository root:
 
 ```powershell
 docker build -t garmin-widget-backend:0.1.0 ./backend
 ```
+
+The image does not include `.env`, tests, local data, tokens, or Git metadata. Container health checks call `/health` on `$PORT` (default `8000`).
+
+Local Docker runtime validation depends on Docker being installed on the operator machine; CI builds the image without pushing. If Docker is unavailable locally, rely on the `docker-build` CI job.
+
+## Deployment
+
+See [docs/render-deployment.md](../docs/render-deployment.md) for the Render Blueprint, persistent disk, secret handling, session bootstrap, and checklists. Configuration is prepared in-repo; creating the live Render service and DNS is an operator step outside this repository change.
 
 ## Run Docker container
 
