@@ -110,6 +110,8 @@ sequenceDiagram
 
 `GET /api/v1/widget/latest` always returns the last successful cache and **never** contacts Garmin. `GET /health` returns service status and **never** contacts Garmin.
 
+Refresh coordination currently uses a **process-scoped** lock keyed by data directory. Separately constructed services in one process that share `DATA_DIR` still deduplicate refreshes. This does **not** coordinate multiple OS processes or Render instances. Deploy the first Render instance with a single worker.
+
 ## Garmin failure fallback flow
 
 ```mermaid

@@ -2,7 +2,7 @@
 
 Private FastAPI service for the `garmin-widget` Android client.
 
-**Status:** Phase 3 local metric fetch and normalization is available. The backend still exposes only `GET /health` over HTTP. There is no Garmin-backed widget endpoint yet.
+**Status:** Phase 4 persistent cache and refresh coordination are available in-process. The backend still exposes only `GET /health` over HTTP. Authenticated widget HTTP endpoints are not implemented yet.
 
 ## Implemented now
 
@@ -15,9 +15,11 @@ Private FastAPI service for the `garmin-widget` Android client.
 - Local Garmin authentication/session lifecycle under `app/garmin/`
 - Filesystem session persistence under `DATA_DIR/garmin/garmin_tokens.json`
 - Garmin metrics adapter + internal/public models + normalization
+- Filesystem persistence for one atomic latest-widget snapshot under `DATA_DIR/widget/`
+- In-process refresh orchestration with cooldown, process-scoped lock/deduplication, and stale-cache fallback
 - Local CLI auth check: `uv run python -m app.garmin.auth_check`
 - Local CLI metrics check: `uv run python -m app.garmin.metrics_check [--date YYYY-MM-DD]`
-- Local tests for health, config, logging, errors, Garmin session, and metric normalization
+- Local tests for health, config, logging, errors, Garmin session, metric normalization, and refresh/cache behavior
 - `uv` dependency management (`pyproject.toml` + `uv.lock`)
 - Production-oriented Dockerfile and `.dockerignore`
 - GitHub Actions workflow for lint and tests
@@ -49,6 +51,16 @@ backend/
 |  |  |- normalize.py
 |  |  |- session.py
 |  |  `- store.py
+|  |- persistence/
+|  |  |- __init__.py
+|  |  |- atomic.py
+|  |  |- coordinator.py
+|  |  |- errors.py
+|  |  |- models.py
+|  |  `- snapshot.py
+|  |- services/
+|  |  |- __init__.py
+|  |  `- refresh.py
 |  `- models/
 |     |- __init__.py
 |     |- domain.py
@@ -66,7 +78,8 @@ backend/
 |  |- test_garmin_session.py
 |  |- test_garmin_store.py
 |  |- test_health.py
-|  `- test_logging.py
+|  |- test_logging.py
+|  `- test_widget_refresh.py
 |- .env.example
 |- .dockerignore
 |- Dockerfile
@@ -130,6 +143,37 @@ uv run python -m app.garmin.metrics_check --date 2026-07-28
 ```
 
 When `--date` is omitted, the command uses today's calendar date in `GARMIN_WIDGET_TIMEZONE`. Output is normalized widget-shaped JSON only (camelCase, `schemaVersion=1`). Failures print a single safe line and exit nonzero. Raw Garmin payloads are never printed.
+
+## Persistent widget cache and refresh coordination
+
+Phase 4 adds filesystem persistence and an in-process refresh service. HTTP widget routes are still not exposed.
+
+Persisted under `DATA_DIR` as **one atomic snapshot file**:
+
+```text
+<GARMIN_WIDGET_DATA_DIR>/widget/latest_snapshot.json
+```
+
+The snapshot envelope contains:
+
+- `persistenceFormatVersion` (persistence format, separate from public widget `schemaVersion`)
+- `lastSuccessfulRefreshAt` (cooldown metadata from the same successful refresh)
+- `payload` (the last successful normalized version-one `WidgetResponse`)
+
+Writes use a same-directory temporary file, `fsync`, and `os.replace`, so a failed write leaves the previous complete snapshot unchanged. Raw Garmin responses, credentials, cookies, tokens, and exception text are never persisted.
+
+`WidgetRefreshService`:
+
+- `get_latest()` returns cache with `refreshStatus=CACHE_HIT` and `stale=false` (never contacts Garmin)
+- `refresh()` honors cooldown from the last **successful** live refresh timestamp in the same snapshot
+- Independently constructed services that share one `DATA_DIR` share one process-scoped refresh lock
+- Failed live refresh or failed persistence with a valid snapshot returns `UPSTREAM_UNAVAILABLE` and `stale=true` without modifying the stored snapshot
+- Failed live refresh/persistence with no valid snapshot raises a typed safe error for the future API layer
+- Transient `CACHE_HIT` / `COOLDOWN` / `UPSTREAM_UNAVAILABLE` responses stay in memory only
+
+### Single-process locking assumption
+
+Refresh deduplication uses a process-scoped lock keyed by data directory. It coordinates multiple service objects in one OS process, but **not** multiple OS processes or Render instances. The first Render deployment must run a **single worker/instance**. Scaling requires a cross-process or distributed lock before that change.
 
 There is still **no** public Garmin-backed HTTP endpoint. `/api/v1/widget/latest` and `/api/v1/widget/refresh` are not implemented yet.
 
@@ -215,3 +259,4 @@ Expected response:
 - `/health` does not contact Garmin or read the session store.
 - No widget-authenticated API endpoints exist yet.
 - Client-facing errors are sanitized and should not expose stack traces or secrets.
+- Widget snapshot files under `DATA_DIR/widget/` must stay local and ignored.

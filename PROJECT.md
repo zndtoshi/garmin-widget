@@ -111,7 +111,7 @@ Version one does **not** store long-term health history.
 
 - Concurrent eligible refresh requests must be deduplicated or locked so one backend process triggers at most one live Garmin request.
 - Failed refreshes must never overwrite the last-known-good payload.
-- The initial deployment assumes a single backend process; cross-process locking can be added later if deployment changes.
+- The initial deployment assumes a single backend process/worker; refresh locking is process-scoped per data directory and does not coordinate multiple OS processes or Render instances. Multiple workers require a cross-process/distributed lock before scaling.
 
 ## Failure fallback behavior
 
