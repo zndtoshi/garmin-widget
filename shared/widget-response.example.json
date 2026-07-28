@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-07-28",
+  "sleepScore": 84,
+  "sleepDurationSeconds": 22620,
+  "overnightHrv": 47,
+  "hrvStatus": "BALANCED",
+  "bodyBattery": 72,
+  "restingHeartRate": 49,
+  "stress": 18,
+  "trainingReadiness": 81,
+  "garminSyncAt": "2026-07-28T05:35:00Z",
+  "refreshedAt": "2026-07-28T05:36:04Z",
+  "stale": false,
+  "refreshStatus": "SUCCESS",
+  "source": "garmin-connect-unofficial"
+}
