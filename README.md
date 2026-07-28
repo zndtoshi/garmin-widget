@@ -1,107 +1,78 @@
-﻿# garmin-widget
+# garmin-widget
 
-Private personal-use project: an Android home-screen widget that shows a small set of Garmin Connect metrics through a private FastAPI backend.
-
-This repository is **not** a public product. It is intended for a single private deployment.
+Private personal-use project: an Android home-screen widget that shows selected Garmin Connect metrics through a private FastAPI backend.
 
 ## Goal
 
-Tap refresh on an Android widget -> private backend fetches (or returns cached) normalized Garmin metrics -> widget displays them. No automatic frequent polling.
+The Android widget talks only to the backend. The backend owns Garmin access, normalizes the data, and eventually serves cached or refreshed widget payloads over HTTPS.
 
 ## High-level architecture
 
 ```text
 Android home-screen widget
-     ↓ HTTPS bearer authentication
+  -> HTTPS bearer authentication
 Private FastAPI service on Render
-     ↓ reusable unofficial Garmin session
+  -> reusable unofficial Garmin session
 Garmin Connect
 ```
 
-The widget never talks to Garmin directly and never receives Garmin credentials or session tokens. Details: [PROJECT.md](PROJECT.md) and [docs/architecture.md](docs/architecture.md).
-
 ## Current status
 
-**Milestone 2 in progress:** minimal FastAPI backend shell is being implemented.
-
-Implemented so far:
-
-- Backend app initialization and routing structure
-- `GET /health` endpoint with typed response model
-- Local tests and lint configuration
-- Dockerfile and `.dockerignore`
-
-Not implemented yet:
-
-- Garmin integration
-- Widget-authenticated endpoints (`/api/v1/widget/*`)
-- Cache/persistence and cooldown behavior
-- Render deployment completion
-
-## Planned milestones
-
-| Milestone | Scope |
-|-----------|--------|
-| **1** | Specification, repository structure, architecture documentation |
-| **2** | Minimal FastAPI backend, `GET /health`, local tests, Dockerfile, Render deployment |
-| **3** | Local Garmin authentication, reusable session-token persistence, fetch/inspect Garmin data locally (no public Garmin-backed endpoint yet) |
-| **4** | Metric normalization, persistent cache, authenticated latest/refresh endpoints, cooldown and error fallback |
-| **5** | Kotlin Android app, Jetpack Glance widget, local cache, manual refresh, open Garmin Connect from widget body |
-| **6** | Adaptive widget sizes, configurable displayed metrics, polish and reliability testing |
+Backend foundation is in progress. `GET /health`, startup configuration, logging, sanitized errors, tests, CI, and Docker scaffolding are implemented. Garmin integration, widget-authenticated endpoints, caching, cooldown logic, and Render deployment are not complete yet.
 
 ## Repository layout
 
 ```text
 garmin-widget/
-├── backend/
-│   ├── app/
-│   ├── tests/
-│   ├── Dockerfile
-│   ├── .dockerignore
-│   ├── README.md
-│   ├── pyproject.toml
-│   └── uv.lock
-├── android/                 # Kotlin / Jetpack Glance app (not implemented yet)
-├── docs/
-│   └── architecture.md
-├── shared/
-│   └── widget-response.example.json
-├── .github/
-│   └── workflows/           # CI placeholders (not configured yet)
-├── .gitignore
-├── README.md
-└── PROJECT.md
+|- backend/
+|  |- app/
+|  |- tests/
+|  |- .env.example
+|  |- .dockerignore
+|  |- Dockerfile
+|  |- README.md
+|  |- pyproject.toml
+|  `- uv.lock
+|- android/
+|- docs/
+|  |- architecture.md
+|  `- implementation-plan.md
+|- shared/
+|  `- widget-response.example.json
+|- .github/
+|  `- workflows/
+|- .gitignore
+|- README.md
+`- PROJECT.md
 ```
 
-## Dependency management (backend)
+## Dependency management
 
-Python dependencies are managed with **[uv](https://github.com/astral-sh/uv)** using:
+Backend Python dependencies use **uv** with:
 
 - `backend/pyproject.toml`
 - `backend/uv.lock`
 
 Do **not** use `requirements.txt`.
 
-## Planned public API (v1)
+## Planned API overview
 
 | Method | Path | Notes |
-|--------|------|--------|
-| `GET` | `/health` | Service status; does **not** contact Garmin |
-| `GET` | `/api/v1/widget/latest` | Last successful cache; does **not** contact Garmin |
-| `POST` | `/api/v1/widget/refresh` | Manual refresh (cooldown, lock, cache, fallback) |
-| `GET` | `/api/v1/widget/history` | **Future only** - out of scope for version one |
-
-Widget endpoints require `Authorization: Bearer <private widget token>`. `/health` may be unauthenticated.
+|--------|------|-------|
+| `GET` | `/health` | Service status only; no Garmin contact |
+| `GET` | `/api/v1/widget/latest` | Cached payload only |
+| `POST` | `/api/v1/widget/refresh` | Manual refresh with cooldown and fallback |
+| `GET` | `/api/v1/widget/history` | Future only; out of scope for version one |
 
 ## Important warnings
 
-- **Unofficial Garmin access may break** if Garmin changes its private APIs. This project depends on an unofficial client (`python-garminconnect`) and is inherently fragile.
-- **Never commit** Garmin credentials, session tokens, the private widget bearer token, local caches, or `.env` files. See `.gitignore`.
-- Persistent Render storage in v1 holds only session tokens, the latest normalized widget cache, and minimal refresh metadata - **not** long-term health history.
+- Unofficial Garmin access may break if Garmin changes its private APIs.
+- Never commit Garmin credentials, session tokens, widget bearer tokens, local caches, or `.env` files.
+- Version one persistent storage is limited to session material, the latest normalized cache, and minimal refresh metadata.
 
 ## Further reading
 
-- [PROJECT.md](PROJECT.md) - full specification and milestones
-- [docs/architecture.md](docs/architecture.md) - diagrams and component boundaries
-- [shared/widget-response.example.json](shared/widget-response.example.json) - example widget payload
-- [backend/README.md](backend/README.md) - backend local and Docker commands
+- [PROJECT.md](PROJECT.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/implementation-plan.md](docs/implementation-plan.md)
+- [backend/README.md](backend/README.md)

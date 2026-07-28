@@ -1,1 +1,1 @@
-﻿"""garmin-widget backend package."""
+"""garmin-widget backend package."""

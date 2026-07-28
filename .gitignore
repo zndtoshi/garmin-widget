@@ -116,17 +116,17 @@ credentials.json
 **/credentials/**
 
 # --- Garmin tokens / sessions (never commit) ---
+# Narrow rules: ignore token artifacts and known data dirs only.
+# Do not use broad *garmin*session* / *session*token* filename globs
+# because they hide legitimate source and test modules.
 **/garmin_tokens/
 **/garmin-tokens/
 **/.garmin/
-**/tokens/
-!**/tokens/.gitkeep
-**/session/
-**/sessions/
-**/*garmin*session*
-**/*session*token*
-**/oauth_tokens/
 **/garth/
+**/oauth_tokens/
+**/garmin_tokens.json
+**/.garmin_tokens_*.json
+garmin_tokens.json
 
 # --- Render / local persistent data directories ---
 **/data/
@@ -159,6 +159,8 @@ temp/
 *.bak
 *.orig
 *.pid
+dif.txt
+commands.txt
 
 # --- OS files ---
 .DS_Store
