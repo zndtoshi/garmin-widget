@@ -18,7 +18,7 @@ Garmin Connect
 
 ## Current status
 
-Backend foundation through Phase 4 cache/refresh coordination is in progress. `GET /health`, configuration, logging, sanitized errors, Garmin session management, metric fetch/normalization, persistent latest-payload cache, in-process refresh orchestration, tests, CI, and Docker scaffolding are implemented. Widget-authenticated HTTP endpoints, Android, and Render deployment are not complete yet.
+Backend foundation through Phase 5 authenticated widget HTTP API is implemented. `GET /health`, bearer-protected `/api/v1/widget/latest` and `/refresh`, Garmin session/metrics, atomic snapshot cache, refresh coordination, tests, CI, and Docker scaffolding are in place. Android and Render deployment are not complete yet. First deployment must remain one worker/instance.
 
 ## Repository layout
 
@@ -55,19 +55,20 @@ Backend Python dependencies use **uv** with:
 
 Do **not** use `requirements.txt`.
 
-## Planned API overview
+## API overview
 
 | Method | Path | Notes |
 |--------|------|-------|
-| `GET` | `/health` | Service status only; no Garmin contact |
-| `GET` | `/api/v1/widget/latest` | Cached payload only |
-| `POST` | `/api/v1/widget/refresh` | Manual refresh with cooldown and fallback |
+| `GET` | `/health` | Unauthenticated service status; no Garmin contact |
+| `GET` | `/api/v1/widget/latest` | Bearer auth; cached payload only |
+| `POST` | `/api/v1/widget/refresh` | Bearer auth; manual refresh with cooldown and fallback |
 | `GET` | `/api/v1/widget/history` | Future only; out of scope for version one |
 
 ## Important warnings
 
 - Unofficial Garmin access may break if Garmin changes its private APIs.
 - Never commit Garmin credentials, session tokens, widget bearer tokens, local caches, or `.env` files.
+- Generate the widget bearer token with `python -c "import secrets; print(secrets.token_urlsafe(32))"` and store it only in ignored `.env`, Render secrets later, and Android secure storage later—never in source control, chat, screenshots, logs, or example files.
 - Version one persistent storage is limited to session material, the latest normalized cache, and minimal refresh metadata.
 
 ## Further reading

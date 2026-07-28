@@ -8,6 +8,24 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Production bearer tokens must be at least this long. Prefer
+# secrets.token_urlsafe(32) (32 random bytes) when generating values.
+WIDGET_BEARER_TOKEN_MIN_LENGTH = 32
+
+# Never accept these known example/placeholder values in production.
+_KNOWN_PLACEHOLDER_WIDGET_TOKENS = frozenset(
+    {
+        "replace-me-before-enabling-widget-endpoints",
+        "your-generated-token-here",
+        "your-widget-bearer-token",
+        "changeme",
+        "change-me",
+        "placeholder",
+        "secret",
+        "password",
+    }
+)
+
 
 class AppEnvironment(StrEnum):
     LOCAL = "local"
@@ -47,17 +65,7 @@ class Settings(BaseSettings):
             ) from exc
 
         if self.app_env == AppEnvironment.PRODUCTION:
-            token = _strip_secret(self.widget_bearer_token)
-            if token is None:
-                raise ValueError(
-                    "GARMIN_WIDGET_WIDGET_BEARER_TOKEN is required when "
-                    "GARMIN_WIDGET_APP_ENV=production"
-                )
-            if not token:
-                raise ValueError(
-                    "GARMIN_WIDGET_WIDGET_BEARER_TOKEN must not be empty when "
-                    "GARMIN_WIDGET_APP_ENV=production"
-                )
+            _validate_production_widget_token(self.widget_bearer_token)
 
         username = _strip_nullable(self.garmin_username)
         password = _strip_secret(self.garmin_password)
@@ -82,6 +90,35 @@ def get_settings() -> Settings:
 
 def clear_settings_cache() -> None:
     get_settings.cache_clear()
+    # Avoid circular import at module load; clear lazily when settings reset.
+    from app.services.factory import clear_service_caches
+
+    clear_service_caches()
+
+
+def _validate_production_widget_token(value: SecretStr | None) -> None:
+    token = _strip_secret(value)
+    if token is None:
+        raise ValueError(
+            "GARMIN_WIDGET_WIDGET_BEARER_TOKEN is required when "
+            "GARMIN_WIDGET_APP_ENV=production"
+        )
+    if not token:
+        raise ValueError(
+            "GARMIN_WIDGET_WIDGET_BEARER_TOKEN must not be empty when "
+            "GARMIN_WIDGET_APP_ENV=production"
+        )
+    if token.lower() in _KNOWN_PLACEHOLDER_WIDGET_TOKENS:
+        raise ValueError(
+            "GARMIN_WIDGET_WIDGET_BEARER_TOKEN must not use a known placeholder "
+            "value when GARMIN_WIDGET_APP_ENV=production"
+        )
+    if len(token) < WIDGET_BEARER_TOKEN_MIN_LENGTH:
+        raise ValueError(
+            "GARMIN_WIDGET_WIDGET_BEARER_TOKEN must be at least "
+            f"{WIDGET_BEARER_TOKEN_MIN_LENGTH} characters when "
+            "GARMIN_WIDGET_APP_ENV=production"
+        )
 
 
 def _strip_nullable(value: str | None) -> str | None:

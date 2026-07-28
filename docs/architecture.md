@@ -108,7 +108,7 @@ sequenceDiagram
   API-->>Widget: Cached payload (appropriate refreshStatus)
 ```
 
-`GET /api/v1/widget/latest` always returns the last successful cache and **never** contacts Garmin. `GET /health` returns service status and **never** contacts Garmin.
+`GET /api/v1/widget/latest` always returns the last successful cache and **never** contacts Garmin. `GET /health` returns service status and **never** contacts Garmin. Widget routes require `Authorization: Bearer <private widget token>`; `/health` does not.
 
 Refresh coordination currently uses a **process-scoped** lock keyed by data directory. Separately constructed services in one process that share `DATA_DIR` still deduplicate refreshes. This does **not** coordinate multiple OS processes or Render instances. Deploy the first Render instance with a single worker.
 
@@ -193,9 +193,9 @@ flowchart LR
 
 | Method | Path | Version one |
 |--------|------|-------------|
-| `GET` | `/health` | Yes — no Garmin contact |
-| `GET` | `/api/v1/widget/latest` | Yes — cache only |
-| `POST` | `/api/v1/widget/refresh` | Yes — cooldown, lock, Garmin, fallback |
+| `GET` | `/health` | Yes — unauthenticated; no Garmin contact |
+| `GET` | `/api/v1/widget/latest` | Yes — bearer auth; cache only |
+| `POST` | `/api/v1/widget/refresh` | Yes — bearer auth; cooldown, lock, Garmin, fallback |
 | `GET` | `/api/v1/widget/history` | **No** — future only; out of scope for v1 |
 
 ## Operational risk

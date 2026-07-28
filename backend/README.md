@@ -2,7 +2,7 @@
 
 Private FastAPI service for the `garmin-widget` Android client.
 
-**Status:** Phase 4 persistent cache and refresh coordination are available in-process. The backend still exposes only `GET /health` over HTTP. Authenticated widget HTTP endpoints are not implemented yet.
+**Status:** Phase 5 authenticated widget HTTP API is implemented. `/health` is public; `/api/v1/widget/*` requires a private bearer token. Android and Render deployment are not complete. First deployment must use one worker/instance.
 
 ## Implemented now
 
@@ -10,16 +10,20 @@ Private FastAPI service for the `garmin-widget` Android client.
 - Typed settings module backed by environment variables (including IANA timezone)
 - Structured logging with secret redaction
 - Safe centralized exception handlers
-- Typed Pydantic response model for health response
+- Typed Pydantic response models for health and widget payloads
 - `GET /health` endpoint (no auth, no Garmin calls, no persistent storage access)
+- Authenticated widget endpoints:
+  - `GET /api/v1/widget/latest`
+  - `POST /api/v1/widget/refresh`
+- Bearer-token authentication (OpenAPI `WidgetBearer`, timing-safe compare)
 - Local Garmin authentication/session lifecycle under `app/garmin/`
 - Filesystem session persistence under `DATA_DIR/garmin/garmin_tokens.json`
 - Garmin metrics adapter + internal/public models + normalization
 - Filesystem persistence for one atomic latest-widget snapshot under `DATA_DIR/widget/`
-- In-process refresh orchestration with cooldown, process-scoped lock/deduplication, and stale-cache fallback
+- Process-scoped refresh orchestration with cooldown, lock/deduplication, and stale-cache fallback
 - Local CLI auth check: `uv run python -m app.garmin.auth_check`
 - Local CLI metrics check: `uv run python -m app.garmin.metrics_check [--date YYYY-MM-DD]`
-- Local tests for health, config, logging, errors, Garmin session, metric normalization, and refresh/cache behavior
+- Local tests for health, auth/API, config, logging, errors, Garmin session, metric normalization, and refresh/cache behavior
 - `uv` dependency management (`pyproject.toml` + `uv.lock`)
 - Production-oriented Dockerfile and `.dockerignore`
 - GitHub Actions workflow for lint and tests
@@ -34,7 +38,9 @@ backend/
 |  |- main.py
 |  |- api/
 |  |  |- __init__.py
-|  |  `- health.py
+|  |  |- auth.py
+|  |  |- health.py
+|  |  `- widget.py
 |  |- core/
 |  |  |- __init__.py
 |  |  |- config.py
@@ -60,6 +66,8 @@ backend/
 |  |  `- snapshot.py
 |  |- services/
 |  |  |- __init__.py
+|  |  |- factory.py
+|  |  |- metrics_provider.py
 |  |  `- refresh.py
 |  `- models/
 |     |- __init__.py
@@ -67,19 +75,6 @@ backend/
 |     |- health.py
 |     `- widget.py
 |- tests/
-|  |- conftest.py
-|  |- fixtures/
-|  |- garmin_fakes.py
-|  |- test_config.py
-|  |- test_errors.py
-|  |- test_garmin_metrics.py
-|  |- test_garmin_metrics_cli.py
-|  |- test_garmin_safety.py
-|  |- test_garmin_session.py
-|  |- test_garmin_store.py
-|  |- test_health.py
-|  |- test_logging.py
-|  `- test_widget_refresh.py
 |- .env.example
 |- .dockerignore
 |- Dockerfile
@@ -98,7 +93,23 @@ Copy the placeholder file when configuring locally:
 Copy-Item .env.example .env
 ```
 
-Edit the ignored `.env` file only. Keep real Garmin credentials out of source control, chat, logs, and committed files.
+Edit the ignored `.env` file only. Keep real Garmin credentials and the widget bearer token out of source control, chat, logs, screenshots, and committed files.
+
+### Generate a private widget bearer token
+
+Do **not** use example placeholders. Generate a cryptographically random token of at least 32 random bytes:
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Put the result only in:
+
+- ignored local `.env` as `GARMIN_WIDGET_WIDGET_BEARER_TOKEN=...`
+- Render secrets later
+- Android secure storage later
+
+Never put a real token in source control, chat, screenshots, logs, or `.env.example`.
 
 Current settings include:
 
@@ -109,11 +120,46 @@ Current settings include:
 - `GARMIN_WIDGET_DATA_DIR`
 - `GARMIN_WIDGET_REFRESH_COOLDOWN_SECONDS`
 - `GARMIN_WIDGET_TIMEZONE` (IANA name; used only to choose the Garmin calendar date)
-- `GARMIN_WIDGET_WIDGET_BEARER_TOKEN`
+- `GARMIN_WIDGET_WIDGET_BEARER_TOKEN` (optional locally; required in production and for widget endpoints)
 - `GARMIN_WIDGET_GARMIN_USERNAME` (optional; comment out unless needed)
 - `GARMIN_WIDGET_GARMIN_PASSWORD` (optional; comment out unless needed)
 
-Production validation currently requires a widget bearer token and rejects half-configured Garmin credentials. Timezone values must be valid IANA names.
+Production validation requires a non-empty widget bearer token that is not a known placeholder and is at least 32 characters. Prefer `secrets.token_urlsafe(32)`. Locally the app may start without a token so `/health` works; widget endpoints return `503` until a real token is configured.
+
+## Widget HTTP API
+
+All `/api/v1/widget/*` routes require:
+
+```http
+Authorization: Bearer <private widget token>
+```
+
+`/health` remains unauthenticated.
+
+| Method | Path | Auth | Contacts Garmin | Success body |
+|--------|------|------|-----------------|--------------|
+| `GET` | `/health` | No | No | health status |
+| `GET` | `/api/v1/widget/latest` | Bearer | No | `WidgetResponse` (`CACHE_HIT`) |
+| `POST` | `/api/v1/widget/refresh` | Bearer | Maybe | `WidgetResponse` (`SUCCESS` / `COOLDOWN` / stale fallback) |
+| `GET` | `/api/v1/widget/history` | — | — | Not implemented (future) |
+
+Stable error mapping:
+
+| Situation | HTTP |
+|-----------|------|
+| Missing/malformed/wrong bearer token | `401` + `WWW-Authenticate: Bearer` |
+| No snapshot for `/latest` | `404` |
+| Server bearer token unset/empty | `503` |
+| Corrupt snapshot / refresh failure without fallback | `503` |
+| Upstream failure with valid snapshot | `200` with `UPSTREAM_UNAVAILABLE`, `stale=true` |
+
+Example calls (PowerShell), after setting a local token and running the server:
+
+```powershell
+Invoke-RestMethod -Method GET -Uri http://127.0.0.1:8000/health
+Invoke-RestMethod -Method GET -Uri http://127.0.0.1:8000/api/v1/widget/latest -Headers @{ Authorization = "Bearer $env:GARMIN_WIDGET_WIDGET_BEARER_TOKEN" }
+Invoke-RestMethod -Method POST -Uri http://127.0.0.1:8000/api/v1/widget/refresh -Headers @{ Authorization = "Bearer $env:GARMIN_WIDGET_WIDGET_BEARER_TOKEN" }
+```
 
 ## Local Garmin authentication check
 
@@ -146,8 +192,6 @@ When `--date` is omitted, the command uses today's calendar date in `GARMIN_WIDG
 
 ## Persistent widget cache and refresh coordination
 
-Phase 4 adds filesystem persistence and an in-process refresh service. HTTP widget routes are still not exposed.
-
 Persisted under `DATA_DIR` as **one atomic snapshot file**:
 
 ```text
@@ -162,20 +206,17 @@ The snapshot envelope contains:
 
 Writes use a same-directory temporary file, `fsync`, and `os.replace`, so a failed write leaves the previous complete snapshot unchanged. Raw Garmin responses, credentials, cookies, tokens, and exception text are never persisted.
 
-`WidgetRefreshService`:
+`WidgetRefreshService` (used by the HTTP layer):
 
 - `get_latest()` returns cache with `refreshStatus=CACHE_HIT` and `stale=false` (never contacts Garmin)
 - `refresh()` honors cooldown from the last **successful** live refresh timestamp in the same snapshot
 - Independently constructed services that share one `DATA_DIR` share one process-scoped refresh lock
 - Failed live refresh or failed persistence with a valid snapshot returns `UPSTREAM_UNAVAILABLE` and `stale=true` without modifying the stored snapshot
-- Failed live refresh/persistence with no valid snapshot raises a typed safe error for the future API layer
 - Transient `CACHE_HIT` / `COOLDOWN` / `UPSTREAM_UNAVAILABLE` responses stay in memory only
 
 ### Single-process locking assumption
 
 Refresh deduplication uses a process-scoped lock keyed by data directory. It coordinates multiple service objects in one OS process, but **not** multiple OS processes or Render instances. The first Render deployment must run a **single worker/instance**. Scaling requires a cross-process or distributed lock before that change.
-
-There is still **no** public Garmin-backed HTTP endpoint. `/api/v1/widget/latest` and `/api/v1/widget/refresh` are not implemented yet.
 
 ## Requirements
 
@@ -254,9 +295,9 @@ Expected response:
 
 ## Security notes
 
-- Never paste Garmin credentials or session tokens into source, logs, chat, or commits.
-- Keep `.env` and `DATA_DIR` session files local and ignored.
-- `/health` does not contact Garmin or read the session store.
-- No widget-authenticated API endpoints exist yet.
+- Never paste Garmin credentials, session tokens, or the widget bearer token into source, logs, chat, or commits.
+- Keep `.env` and `DATA_DIR` session/snapshot files local and ignored.
+- `/health` does not contact Garmin or read the session/snapshot stores.
+- Widget endpoints require a private bearer token; missing/wrong tokens receive a generic `401`.
 - Client-facing errors are sanitized and should not expose stack traces or secrets.
 - Widget snapshot files under `DATA_DIR/widget/` must stay local and ignored.

@@ -18,28 +18,31 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend foundation is in progress.
+Backend Phases 1–5 are implemented for local/private use. Android and Render deployment are not complete.
 
 Implemented now:
 
 - FastAPI app skeleton and route wiring
-- `GET /health` endpoint returning a typed response model
-- typed environment-based settings
-- structured logging with secret redaction
-- safe centralized exception handling
-- local tests for health, config, logging, and sanitized errors
-- `uv` project configuration and lockfile
-- Dockerfile, `.dockerignore`, and backend CI workflow
+- `GET /health` (unauthenticated; no Garmin/persistence access)
+- Authenticated widget API:
+  - `GET /api/v1/widget/latest`
+  - `POST /api/v1/widget/refresh`
+- Bearer-token authentication with timing-safe comparison
+- Typed environment-based settings (including timezone and cooldown)
+- Structured logging with secret redaction
+- Safe centralized exception handling
+- Garmin authentication/session lifecycle and filesystem token store
+- Metric adapter, normalization, and public `WidgetResponse` model
+- Atomic latest-widget snapshot persistence and refresh coordination
+- Local CLI auth/metrics checks
+- Local tests, `uv` lockfile, Dockerfile, backend CI
 
 Not implemented yet:
 
-- Garmin authentication and session handling
-- Garmin client
-- metric normalization logic
-- cache/persistence
-- API authentication for widget endpoints
-- widget endpoints beyond `/health`
-- Render deployment completion
+- Android/Glance widget
+- Render deployment and custom domain
+- Multi-process/distributed refresh locking
+- `/api/v1/widget/history` (future only)
 
 Delivery phases and acceptance criteria live in [`docs/implementation-plan.md`](docs/implementation-plan.md).
 
@@ -84,20 +87,35 @@ Version one persistent storage may contain only:
 
 Version one does **not** store long-term health history.
 
-## Planned API
+## Version-one API
 
 | Method | Path | Auth | Contacts Garmin | Purpose |
 |--------|------|------|-----------------|---------|
-| `GET` | `/health` | Optional | No | Service status / liveness |
+| `GET` | `/health` | No | No | Service status / liveness |
 | `GET` | `/api/v1/widget/latest` | Required | No | Return the last successful cached widget payload |
 | `POST` | `/api/v1/widget/refresh` | Required | Maybe | Refresh on explicit user action |
 | `GET` | `/api/v1/widget/history` | Future | No | Out of scope for version one |
+
+### HTTP status behavior
+
+| Situation | Status | Notes |
+|-----------|--------|-------|
+| Valid bearer auth + successful payload | `200` | Body is `WidgetResponse` |
+| Missing/malformed/incorrect bearer token | `401` | Generic `Unauthorized`; `WWW-Authenticate: Bearer` |
+| No successful snapshot for `/latest` | `404` | Generic no-data detail |
+| Server widget token unset/empty (non-production misconfig) | `503` | Generic configuration detail |
+| Corrupt/unreadable snapshot | `503` | Generic unavailable detail |
+| Live refresh failed with no fallback | `503` | Generic unavailable detail |
+| Upstream failure with valid snapshot | `200` | `refreshStatus=UPSTREAM_UNAVAILABLE`, `stale=true` |
 
 ## Authentication requirements
 
 - `GET /health` may be unauthenticated.
 - All `/api/v1/widget/*` endpoints must require `Authorization: Bearer <private widget token>`.
 - Widget authentication is separate from Garmin authentication.
+- Generate the private widget token with at least 32 random bytes, for example `python -c "import secrets; print(secrets.token_urlsafe(32))"`.
+- Store that value only in ignored local `.env`, Render secrets later, and Android secure storage later—never in source control, chat, screenshots, logs, or example files.
+- Production rejects missing, empty, known-placeholder, and short (`< 32` character) widget bearer tokens without echoing the token value.
 
 ## Refresh and cooldown rules
 
