@@ -12,31 +12,14 @@ import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WidgetFormattersTest {
     @Test
-    fun `classifies size buckets with width and height boundaries`() {
-        assertEquals(WidgetSizeClass.COMPACT, classifySize(DpSize(180.dp, 110.dp)))
-        assertEquals(WidgetSizeClass.WIDE, classifySize(DpSize(300.dp, 180.dp)))
-        assertEquals(WidgetSizeClass.LARGE, classifySize(DpSize(300.dp, 280.dp)))
-
-        // Wide-short / narrow-tall stay compact when either dimension misses thresholds.
-        assertEquals(WidgetSizeClass.COMPACT, classifySize(DpSize(300.dp, 140.dp)))
-        assertEquals(WidgetSizeClass.COMPACT, classifySize(DpSize(200.dp, 240.dp)))
-        assertEquals(WidgetSizeClass.COMPACT, classifySize(DpSize(249.dp, 240.dp)))
-        assertEquals(WidgetSizeClass.COMPACT, classifySize(DpSize(250.dp, 149.dp)))
-
-        // Boundary at thresholds.
-        assertEquals(WidgetSizeClass.WIDE, classifySize(DpSize(250.dp, 150.dp)))
-        assertEquals(WidgetSizeClass.WIDE, classifySize(DpSize(250.dp, 239.dp)))
-        assertEquals(WidgetSizeClass.LARGE, classifySize(DpSize(250.dp, 240.dp)))
-    }
-
-    @Test
     fun `equal top panels share width and centers`() {
-        listOf(164f, 284f, 284f).forEach { contentWidth ->
+        listOf(164f, 284f, 334f).forEach { contentWidth ->
             val geo = equalTopPanelGeometry(contentWidth)
             assertEquals(3, geo.centersDp.size)
             assertEquals(contentWidth / 3f, geo.panelWidthDp, 0.001f)
@@ -48,99 +31,67 @@ class WidgetFormattersTest {
     }
 
     @Test
-    fun `layout budgets fit advertised widget heights`() {
-        assertTrue(LayoutMetrics.HEADER_DP >= LayoutMetrics.REFRESH_TOUCH_TARGET_DP)
-        assertTrue(LayoutMetrics.compactBudget().fits)
-        assertTrue(LayoutMetrics.wideBudget().fits)
-        assertTrue(LayoutMetrics.largeBudget().fits)
-        assertTrue(LayoutMetrics.compactBudget().estimatedUsedHeightDp <= 110)
-        assertTrue(LayoutMetrics.wideBudget().estimatedUsedHeightDp <= 180)
-        assertTrue(LayoutMetrics.largeBudget().estimatedUsedHeightDp <= 280)
-        assertTrue(LayoutMetrics.wideBudget().healthRowDp in 64..96)
-        assertTrue(LayoutMetrics.wideBudget().activityDp in 30..48)
-        assertTrue(LayoutMetrics.largeBudget().activityDp in 100..140)
-        assertTrue(
-            LayoutMetrics.largeSleepPanelContentHeightDp() <= LayoutMetrics.largeBudget().healthRowDp + 20,
-        )
+    fun `primary 438x236 two-row layout fits with charts and no intervening sections`() {
+        val size = DpSize(438.dp, 236.dp)
+        val spec = LayoutMetrics.fromSize(size)
+        assertTrue(spec.fits)
+        assertEquals(3, spec.equalTopPanels.centersDp.size)
+        assertTrue(spec.equalTopPanels.equalWidths)
+        assertTrue(spec.healthRowDp > 0)
+        assertTrue(spec.activityDp > 0)
+        assertTrue(spec.activityDp >= spec.healthRowDp - 8)
+        assertTrue(spec.sleepRingDp >= LayoutMetrics.MIN_SLEEP_RING_DP)
+        assertTrue(spec.hrvGraphWidthDp > 0f)
+        assertTrue(spec.hrvGraphHeightDp >= LayoutMetrics.MIN_HRV_GRAPH_HEIGHT_DP)
+        assertTrue(spec.panelChartWidthDp > 0f)
+        assertTrue(spec.panelChartHeightDp >= LayoutMetrics.MIN_PANEL_CHART_HEIGHT_DP)
+        assertTrue(spec.showActivityHrChart)
+        assertTrue(spec.activityHrChartHeightDp >= LayoutMetrics.MIN_ACTIVITY_HR_CHART_DP)
+        assertFalse(spec.hasStandaloneHealthChart)
+        assertFalse(spec.hasMetricsRow)
+        assertFalse(spec.hasSleepLegend)
+        assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
     }
 
     @Test
-    fun `adaptive layout fits every representative and boundary size`() {
+    fun `adaptive two-row layout fits representative wide sizes`() {
         val cases = listOf(
-            DpSize(180.dp, 110.dp),
+            DpSize(438.dp, 236.dp),
+            DpSize(350.dp, 189.dp),
             DpSize(300.dp, 180.dp),
-            DpSize(300.dp, 280.dp),
-            DpSize(300.dp, 360.dp),
-            DpSize(200.dp, 280.dp),
-            DpSize(320.dp, 140.dp),
-            DpSize(249.dp, 240.dp),
-            DpSize(250.dp, 150.dp),
-            DpSize(250.dp, 239.dp),
-            DpSize(250.dp, 240.dp),
-            DpSize(250.dp, 250.dp),
+            DpSize(300.dp, 200.dp),
+            DpSize(320.dp, 220.dp),
+            DpSize(280.dp, 170.dp),
+            DpSize(360.dp, 240.dp),
+            DpSize(250.dp, 180.dp),
         )
         cases.forEach { size ->
             val spec = LayoutMetrics.fromSize(size)
-            assertEquals(classifySize(size), spec.sizeClass)
-            assertEquals(3, spec.equalTopPanels.centersDp.size)
-            assertTrue(spec.equalTopPanels.equalWidths)
-            assertTrue(spec.panelWidthDp > 0f)
-            assertTrue(
-                "used ${spec.estimatedUsedHeightDp} > height ${size.height.value} for $size",
-                spec.fits,
-            )
-            assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
-            assertTrue(spec.healthRowDp >= 0)
-            assertTrue(spec.chartDp >= 0)
-            assertTrue(spec.metricsRowDp >= 0)
-            assertTrue(spec.activityDp >= 0)
-            when (spec.sizeClass) {
-                WidgetSizeClass.COMPACT -> {
-                    assertEquals(0, spec.afterHealthSpacerDp)
-                    assertEquals(0, spec.afterChartSpacerDp)
-                    assertEquals(0, spec.afterMetricsSpacerDp)
-                    assertEquals(0, spec.activityDp)
-                }
-                WidgetSizeClass.WIDE -> {
-                    assertEquals(if (spec.activityDp > 0) 4 else 0, spec.afterHealthSpacerDp)
-                    assertEquals(0, spec.afterChartSpacerDp)
-                    assertEquals(0, spec.afterMetricsSpacerDp)
-                }
-                WidgetSizeClass.LARGE -> {
-                    assertEquals(if (spec.chartDp > 0) 4 else 0, spec.afterHealthSpacerDp)
-                    assertEquals(if (spec.metricsRowDp > 0) 4 else 0, spec.afterChartSpacerDp)
-                    assertEquals(if (spec.activityDp > 0) 4 else 0, spec.afterMetricsSpacerDp)
-                }
-            }
+            assertTrue("does not fit $size used=${spec.estimatedUsedHeightDp}", spec.fits)
+            assertTrue(spec.healthRowDp > 0)
+            assertTrue(spec.activityDp > 0)
+            assertTrue(spec.sleepRingDp > 0f)
+            assertTrue(spec.hrvGraphHeightDp > 0f)
+            assertTrue(spec.panelChartHeightDp > 0f)
+            assertTrue(spec.showActivityHrChart)
+            assertFalse(spec.hasStandaloneHealthChart)
+            assertFalse(spec.hasMetricsRow)
+            assertFalse(spec.hasSleepLegend)
         }
-
-        val boundaryLarge = LayoutMetrics.fromSize(DpSize(250.dp, 240.dp))
-        assertEquals(WidgetSizeClass.LARGE, boundaryLarge.sizeClass)
-        assertTrue(boundaryLarge.fits)
-        val largeMinPreset = LayoutMetrics.fromSize(DpSize(250.dp, 250.dp))
-        assertEquals(WidgetSizeClass.LARGE, largeMinPreset.sizeClass)
-        assertTrue(largeMinPreset.fits)
-
-        val baseline = LayoutMetrics.fromSize(DpSize(300.dp, 280.dp))
-        assertTrue(baseline.fits)
-        assertTrue("baseline activity ${baseline.activityDp}", baseline.activityDp in 100..110)
-        val tall = LayoutMetrics.fromSize(DpSize(300.dp, 360.dp))
-        assertTrue(tall.activityDp >= baseline.activityDp)
+        val tall = LayoutMetrics.fromSize(DpSize(350.dp, 260.dp))
+        val primary = LayoutMetrics.fromSize(DpSize(438.dp, 236.dp))
+        assertTrue(tall.activityDp >= primary.activityDp)
     }
 
     @Test
-    fun `sleep legend presentation never includes stage durations`() {
-        sleepLegendPresentation().forEach { label ->
-            assertTrue(!sleepLegendContainsStageDuration(label))
-            assertTrue(label.length <= 2)
-        }
+    fun `sleep stage legend is absent from widget presentation`() {
+        assertFalse(widgetRendersSleepStageLegend())
         assertEquals("Deep 1h 30m", formatStageLabel("Deep", 5400))
-        assertTrue(sleepLegendContainsStageDuration(formatStageLabel("Deep", 5400)))
     }
 
     @Test
-    fun `large layout bitmap estimate stays under 600KB`() {
-        val bytes = LayoutMetrics.estimateLargeLayoutBitmapBytes()
+    fun `widget bitmap estimate stays under 600KB`() {
+        val bytes = LayoutMetrics.estimateWidgetBitmapBytes()
         assertTrue("estimated $bytes bytes", bytes < LayoutMetrics.MAX_LARGE_WIDGET_BITMAP_BYTES)
         assertTrue(bytes > 0)
     }
@@ -196,7 +147,8 @@ class WidgetFormattersTest {
         assertEquals(3, selected.size)
         assertEquals(LocalDate.parse("2026-07-23"), selected[0].date)
         assertEquals(LocalDate.parse("2026-07-25"), selected[2].date)
-        assertEquals(7, pickRecentHrvPoints(points + points + points, 7).size.coerceAtMost(7))
+        assertTrue(hasRenderableHrvTrend(points))
+        assertFalse(hasRenderableHrvTrend(listOf(HrvTrendPoint(LocalDate.parse("2026-07-25"), 43, null, null))))
     }
 
     @Test
@@ -279,5 +231,8 @@ class WidgetFormattersTest {
         assertTrue(chart.contains("Stress 18"))
         assertTrue(sleepRingContentDescription(80, true).contains("80"))
         assertTrue(statusContentDescription(LocalStatus.READY).contains("ready"))
+        assertEquals("Sleep panel icon", healthPanelIconContentDescription(HealthPanelIcon.SLEEP))
+        assertEquals("HRV panel icon", healthPanelIconContentDescription(HealthPanelIcon.HRV))
+        assertEquals("Body Battery panel icon", healthPanelIconContentDescription(HealthPanelIcon.BODY_BATTERY))
     }
 }

@@ -10,7 +10,7 @@ import org.w3c.dom.Element
 
 class WidgetProviderManifestTest {
     @Test
-    fun `merged source manifest declares exactly three exported widget receivers`() {
+    fun `manifest declares exactly one exported widget receiver and provider xml`() {
         val manifest = File("src/main/AndroidManifest.xml")
         assertTrue("missing ${manifest.absolutePath}", manifest.isFile)
         val doc = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(manifest)
@@ -31,49 +31,24 @@ class WidgetProviderManifestTest {
             }
             if (isWidget) widgetReceivers += receiver
         }
-        assertEquals(3, widgetReceivers.size)
-        assertTrue(widgetReceivers.all { it.getAttribute("android:exported") == "true" })
+        assertEquals(1, widgetReceivers.size)
+        val receiver = widgetReceivers.single()
+        assertEquals("true", receiver.getAttribute("android:exported"))
+        assertEquals(".widget.GarminWidgetReceiver", receiver.getAttribute("android:name"))
+        assertEquals("@string/widget_name", receiver.getAttribute("android:label"))
 
-        val names = widgetReceivers.map { it.getAttribute("android:name") }.toSet()
-        assertEquals(
-            setOf(
-                ".widget.GarminCompactWidgetReceiver",
-                ".widget.GarminWidgetReceiver",
-                ".widget.GarminLargeWidgetReceiver",
-            ),
-            names,
-        )
-
-        val resources = widgetReceivers.map { receiver ->
-            val metas = receiver.getElementsByTagName("meta-data")
-            var resource: String? = null
-            for (i in 0 until metas.length) {
-                val meta = metas.item(i) as Element
-                if (meta.getAttribute("android:name") == "android.appwidget.provider") {
-                    resource = meta.getAttribute("android:resource")
-                }
+        val metas = receiver.getElementsByTagName("meta-data")
+        var resource: String? = null
+        for (i in 0 until metas.length) {
+            val meta = metas.item(i) as Element
+            if (meta.getAttribute("android:name") == "android.appwidget.provider") {
+                resource = meta.getAttribute("android:resource")
             }
-            resource
-        }.toSet()
-        assertEquals(
-            setOf(
-                "@xml/garmin_widget_info_compact",
-                "@xml/garmin_widget_info",
-                "@xml/garmin_widget_info_large",
-            ),
-            resources,
-        )
-
-        listOf(
-            "src/main/res/xml/garmin_widget_info_compact.xml",
-            "src/main/res/xml/garmin_widget_info.xml",
-            "src/main/res/xml/garmin_widget_info_large.xml",
-        ).forEach { path ->
-            assertTrue(File(path).isFile)
         }
-        assertFalse(
-            "unused wide provider XML must not exist",
-            File("src/main/res/xml/garmin_widget_info_wide.xml").exists(),
-        )
+        assertEquals("@xml/garmin_widget_info", resource)
+        assertTrue(File("src/main/res/xml/garmin_widget_info.xml").isFile)
+        assertFalse(File("src/main/res/xml/garmin_widget_info_compact.xml").exists())
+        assertFalse(File("src/main/res/xml/garmin_widget_info_large.xml").exists())
+        assertFalse(File("src/main/res/xml/garmin_widget_info_wide.xml").exists())
     }
 }

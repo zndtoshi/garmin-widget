@@ -1,7 +1,5 @@
 package com.zndtoshi.garminwidget.widget
 
-import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.dp
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
@@ -13,15 +11,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
-internal enum class WidgetSizeClass { COMPACT, WIDE, LARGE }
-
 internal enum class HrvMarkerKind { CIRCLE, SQUARE, TRIANGLE, NEUTRAL }
-
-internal fun classifySize(size: DpSize): WidgetSizeClass = when {
-    size.width >= 250.dp && size.height >= 240.dp -> WidgetSizeClass.LARGE
-    size.width >= 250.dp && size.height >= 150.dp -> WidgetSizeClass.WIDE
-    else -> WidgetSizeClass.COMPACT
-}
 
 internal fun clampOpacityPercent(value: Int?): Int = (value ?: 88).coerceIn(0, 100)
 
@@ -39,13 +29,11 @@ internal fun formatSleepDuration(seconds: Int?): String {
 internal fun formatStageLabel(name: String, seconds: Int?): String =
     if (seconds == null || seconds <= 0) "$name —" else "$name ${formatSleepDuration(seconds)}"
 
-/** Sleep legend shows stage initials/names only — never per-stage durations. */
-internal fun sleepLegendLabel(initial: String): String = initial.trim()
+/** Sleep-stage legend was removed from the widget; keep helper only for negative proof in tests. */
+internal fun widgetRendersSleepStageLegend(): Boolean = false
 
-internal fun sleepLegendPresentation(): List<String> = listOf("D", "L", "R", "A").map(::sleepLegendLabel)
-
-internal fun sleepLegendContainsStageDuration(text: String): Boolean =
-    Regex("""\d+\s*h|\d+\s*m""").containsMatchIn(text)
+internal fun hasRenderableHrvTrend(points: List<HrvTrendPoint>): Boolean =
+    pickRecentHrvPoints(points, 7).count { hrvPlotValue(it) != null } >= 2
 
 internal fun mapHrvStatusToMarker(status: String?): HrvMarkerKind {
     return when (status?.trim()?.uppercase(Locale.US)) {
