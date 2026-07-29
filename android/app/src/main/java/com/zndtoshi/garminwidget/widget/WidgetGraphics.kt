@@ -1065,10 +1065,10 @@ internal fun activityHrDiffusionDepthPx(
     plotHeightPx: Float,
     renderScale: Float = LayoutMetrics.RENDER_SCALE,
 ): Float {
-    val target = 14f * renderScale
+    val target = 20f * renderScale
     return target
-        .coerceIn(10f * renderScale, 18f * renderScale)
-        .coerceAtMost((plotHeightPx * 0.40f).coerceAtLeast(8f))
+        .coerceIn(14f * renderScale, 24f * renderScale)
+        .coerceAtMost((plotHeightPx * 0.52f).coerceAtLeast(8f))
 }
 
 internal fun activityHrDiffusionStartAlpha(): Int = 0x3A

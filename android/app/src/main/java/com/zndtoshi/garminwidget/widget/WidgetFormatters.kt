@@ -186,6 +186,8 @@ internal fun batteryStressPresentation(bodyBattery: Int?, stress: Int?): Battery
 
 /** Subtle separation without the milky appearance of the earlier 0x18 alpha cards. */
 internal const val HEALTH_PANEL_CARD_COLOR = 0x0CFFFFFF
+internal const val HEALTH_TRAILING_VALUE_FONT_SP = 13f
+internal const val ACTIVITY_MAX_HR_FONT_SP = 11f
 
 internal fun healthPanelsUseCardBackground(): Boolean = true
 

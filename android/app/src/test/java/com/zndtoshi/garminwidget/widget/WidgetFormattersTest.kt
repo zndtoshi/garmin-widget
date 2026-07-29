@@ -111,6 +111,8 @@ class WidgetFormattersTest {
 
     @Test
     fun `health headers expose trailing values without duplication`() {
+        assertEquals(13f, HEALTH_TRAILING_VALUE_FONT_SP, 0.01f)
+        assertEquals(11f, ACTIVITY_MAX_HR_FONT_SP, 0.01f)
         val hrv = hrvHeaderPresentation(43, "BALANCED", showTitle = true)
         assertEquals("HRV Status", hrv.title)
         assertEquals("43 ms", hrv.trailingValue)

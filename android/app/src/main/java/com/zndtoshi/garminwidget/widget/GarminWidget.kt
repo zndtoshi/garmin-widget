@@ -36,6 +36,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.zndtoshi.garminwidget.R
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
@@ -262,7 +263,7 @@ private fun HealthPanelHeader(icon: HealthPanelIcon, header: HealthPanelHeaderPr
                 text = header.trailingValue,
                 style = TextStyle(
                     color = ColorProvider(Color.White),
-                    fontSize = 12.sp,
+                    fontSize = HEALTH_TRAILING_VALUE_FONT_SP.sp,
                     fontWeight = FontWeight.Bold,
                 ),
                 maxLines = 1,
@@ -405,8 +406,7 @@ private fun ActivityStrip(
         modifier = GlanceModifier
             .fillMaxWidth()
             .height(heightDp)
-            .cornerRadius(10.dp)
-            .background(ColorProvider(Color(HEALTH_PANEL_CARD_COLOR)))
+            .background(ImageProvider(R.drawable.activity_card_background))
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
         Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -426,7 +426,11 @@ private fun ActivityStrip(
                     Spacer(GlanceModifier.width(6.dp))
                     Text(
                         text = "Max HR ${formatHr(activity.maxHeartRate)}",
-                        style = TextStyle(color = ColorProvider(Color.White), fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                        style = TextStyle(
+                            color = ColorProvider(Color.White),
+                            fontSize = ACTIVITY_MAX_HR_FONT_SP.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
                         maxLines = 1,
                     )
                 }
