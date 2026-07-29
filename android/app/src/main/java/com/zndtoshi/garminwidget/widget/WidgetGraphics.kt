@@ -975,8 +975,10 @@ internal fun buildActivityHrChartGeometry(
     return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
-internal val HR_NEUTRAL_GRAY = 0xFF9AA0A6.toInt()
+internal val HR_NEUTRAL_GRAY = 0xFF737B82.toInt()
 internal val HR_HIGH_RED = 0xFFF44336.toInt()
+
+internal fun activityHrDiffusionColorArgb(): Int = HR_NEUTRAL_GRAY
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
 internal fun resolveActivityHrCeiling(
@@ -1132,8 +1134,8 @@ internal fun drawActivityHrChartBitmap(
     for (i in 0 until geo.points.lastIndex) {
         val a = geo.points[i]
         val b = geo.points[i + 1]
-        val c0 = heartRateZoneColorArgb(a.value, ceiling)
-        val c1 = heartRateZoneColorArgb(b.value, ceiling)
+        val c0 = activityHrDiffusionColorArgb()
+        val c1 = activityHrDiffusionColorArgb()
         val span = abs(b.x - a.x)
         val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
         for (s in 0 until steps) {

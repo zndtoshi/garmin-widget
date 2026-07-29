@@ -250,6 +250,8 @@ class WidgetGraphicsTest {
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(190, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(200, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(220, maxHr))
+        assertEquals(HR_NEUTRAL_GRAY, activityHrDiffusionColorArgb())
+        assertTrue(activityHrDiffusionColorArgb() != HR_HIGH_RED)
     }
 
     @Test
@@ -462,7 +464,7 @@ class WidgetGraphicsTest {
         assertTrue(activityHrDiffusionExtendsToBaseline(nearBaselineY, depth, bottom))
         assertEquals(bottom, activityHrDiffusionBottomY(nearBaselineY, depth, bottom), 0.01f)
 
-        val neutral = heartRateZoneColorArgb(120, 200)
+        val neutral = activityHrDiffusionColorArgb()
         val red = heartRateZoneColorArgb(200, 200)
         assertEquals(activityHrDiffusionStartAlpha(), argbWithAlpha(neutral, activityHrDiffusionStartAlpha()) ushr 24)
         assertEquals(0, argbWithAlpha(red, 0) ushr 24)
