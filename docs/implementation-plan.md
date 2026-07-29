@@ -208,6 +208,10 @@ Repository and deployment **preparation** are complete: Render Blueprint, single
 
 ## Phase 7: Build the Android app and widget
 
+### Progress note
+
+The first Phase 7 increment is implemented: Kotlin/Compose configuration UI, Android Keystore-encrypted bearer token, typed widget payload parsing, app-private payload cache, responsive Glance widget, deduplicated manual WorkManager refresh, Garmin Connect launch fallback, unit tests, lint, and a successful debug APK build. Device/emulator interaction verification, release signing, and final private distribution remain pending.
+
 ### Work
 
 1. Create the Kotlin Android application and choose minimum/target SDK versions supported by Jetpack Glance.

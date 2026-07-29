@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Garmin Widget</string>
+    <string name="widget_name">Garmin Daily Metrics</string>
+    <string name="widget_description">Daily Garmin metrics with manual refresh.</string>
+</resources>

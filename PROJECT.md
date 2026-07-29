@@ -18,7 +18,7 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend Phases 1–6 configuration are implemented for local/private use. Render Blueprint and deployment runbook exist, but no live Render service or custom domain has been completed. Android is not started.
+Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Android Phase 7 is in progress with a buildable configuration app and initial Glance widget.
 
 Implemented now:
 
@@ -38,11 +38,16 @@ Implemented now:
 - Root `render.yaml` Blueprint and [`docs/render-deployment.md`](docs/render-deployment.md) runbook
 - Local CLI auth/metrics checks
 - Local tests, `uv` lockfile, Dockerfile, backend CI (including Docker build validation)
+- Live Render deployment at `https://garmin.zndtoshi.com`
+- Initial Kotlin/Jetpack Glance Android app with encrypted bearer-token storage
+- Local widget payload cache, manual WorkManager refresh, and Garmin Connect launch action
+- Android unit tests, lint validation, Gradle wrapper, and debug APK build
 
 Not implemented yet:
 
-- Live Render deployment / custom domain / DNS
-- Android/Glance widget
+- Device/emulator verification of the Android app and Glance widget
+- Android release signing and final private distribution
+- Responsive/widget-state polish from Phase 8
 - Multi-process/distributed refresh locking
 - `/api/v1/widget/history` (future only)
 

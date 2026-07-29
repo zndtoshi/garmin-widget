@@ -18,7 +18,7 @@ Garmin Connect
 
 ## Current status
 
-Backend foundation through Phase 6 deployment **preparation** is implemented. Health + authenticated widget API, Garmin session/metrics, atomic snapshot cache, Render Blueprint (`render.yaml`), container entrypoint, CI Docker build validation, and the [Render runbook](docs/render-deployment.md) are in place. A live Render service, custom domain/DNS, and Android are **not** complete yet. First deployment must remain one worker/instance with a persistent disk.
+Backend Phase 6 is live at `https://garmin.zndtoshi.com`: health, authenticated widget API, Garmin session/metrics, atomic snapshot cache, persistent Render disk, custom-domain DNS, and TLS have been verified. Phase 7 is in progress with a buildable Android configuration app and initial Jetpack Glance widget under [`android/`](android/). The deployment remains one worker/instance with a persistent disk.
 
 ## Repository layout
 
