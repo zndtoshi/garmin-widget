@@ -94,6 +94,23 @@ internal data class AdaptiveLayoutSpec(
     val sleepInternalBudgetFits: Boolean
         get() = sleepInternalUsedHeightDp <= healthPanelContentHeightDp
 
+    val activityInternalUsedHeightDp: Int
+        get() = LayoutMetrics.activityInternalUsedHeightDp(activityDp, activityHrChartHeightDp)
+
+    val activityInternalBudgetFits: Boolean
+        get() = activityInternalUsedHeightDp <= activityDp &&
+            kotlin.math.abs(activityInternalUsedHeightDp - activityDp) <= 1
+
+    val activityChartContentWidthDp: Float
+        get() = LayoutMetrics.activityChartContentWidthDp(contentWidthDp)
+
+    /** Activity card outer horizontal inset matches the health-row EqualPanel gutter. */
+    val activityAlignsWithHealthRowInsets: Boolean
+        get() = LayoutMetrics.ACTIVITY_CARD_OUTER_HORIZONTAL_PADDING_DP ==
+            LayoutMetrics.HEALTH_PANEL_HORIZONTAL_PADDING_DP &&
+            LayoutMetrics.ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP ==
+            LayoutMetrics.HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP
+
     /** HRV and Body Battery charts share the same card-bottom inset and fill remaining height. */
     val healthChartsBottomAligned: Boolean
         get() = hrvInternalBudgetFits &&
@@ -138,6 +155,16 @@ internal object LayoutMetrics {
     /** Shared bottom inset inside Sleep / HRV / Body Battery cards. */
     const val HEALTH_CARD_BOTTOM_INSET_DP = 2
 
+    /** Aligns activity card outer edge with EqualPanel horizontal gutter. */
+    const val ACTIVITY_CARD_OUTER_HORIZONTAL_PADDING_DP = HEALTH_PANEL_HORIZONTAL_PADDING_DP
+    /** Matches health-card inner horizontal padding so content shares the same inset. */
+    const val ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP = HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP
+    const val ACTIVITY_CARD_INNER_VERTICAL_PADDING_DP = 4
+    const val ACTIVITY_HEADER_DP = 18
+    const val ACTIVITY_HEADER_CHART_GAP_DP = 2
+    const val ACTIVITY_CARD_BOTTOM_INSET_DP = HEALTH_CARD_BOTTOM_INSET_DP
+    const val ACTIVITY_CARD_BOTTOM_CORNER_RADIUS_DP = 24
+
     /** Default bitmap render scale for Glance ImageProvider bitmaps. */
     const val RENDER_SCALE = 2f
     const val MAX_BITMAP_WIDTH_PX = 560
@@ -146,6 +173,31 @@ internal object LayoutMetrics {
 
     fun healthPanelContentHeightDp(healthRowDp: Int): Int =
         (healthRowDp - HEALTH_PANEL_VERTICAL_PADDING_DP * 2).coerceAtLeast(1)
+
+    /**
+     * Chart height that fills the activity row after header, gap, and shared bottom inset.
+     * Removes unused empty band under the HR plot.
+     */
+    fun activityHrChartHeightDp(activityRowDp: Int): Int {
+        val chrome = ACTIVITY_CARD_INNER_VERTICAL_PADDING_DP * 2 +
+            ACTIVITY_HEADER_DP +
+            ACTIVITY_HEADER_CHART_GAP_DP +
+            ACTIVITY_CARD_BOTTOM_INSET_DP
+        return (activityRowDp - chrome).coerceAtLeast(1)
+    }
+
+    fun activityChartContentWidthDp(contentWidthDp: Float): Float =
+        (contentWidthDp -
+            ACTIVITY_CARD_OUTER_HORIZONTAL_PADDING_DP * 2 -
+            ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP * 2)
+            .coerceAtLeast(1f)
+
+    fun activityInternalUsedHeightDp(activityRowDp: Int, chartHeightDp: Int): Int =
+        ACTIVITY_CARD_INNER_VERTICAL_PADDING_DP * 2 +
+            ACTIVITY_HEADER_DP +
+            ACTIVITY_HEADER_CHART_GAP_DP +
+            chartHeightDp +
+            ACTIVITY_CARD_BOTTOM_INSET_DP
 
     /**
      * Vertical budget for a health card: header/status/chrome + chart + shared bottom inset
@@ -201,12 +253,8 @@ internal object LayoutMetrics {
 
         val showTitles = health >= 68 && panelWidth >= 90f
         val showSecondary = activity >= 88
-        // Size the visual elements from the actual row budgets instead of using
-        // conservative fixed caps. This lets a resized widget consume the space
-        // the launcher has really allocated while retaining compact fallbacks.
-        val hrChart = (activity - 30)
-            .coerceIn(16, 110)
-            .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
+        // Fill remaining activity-card height after header/gap/padding (no empty lower band).
+        val hrChart = activityHrChartHeightDp(activity)
 
         val contentH = healthPanelContentHeightDp(health)
         // Sleep: no title; duration lives inside the ring — enlarge ring to fill the card.

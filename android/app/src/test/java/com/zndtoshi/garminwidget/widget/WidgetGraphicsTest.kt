@@ -241,17 +241,23 @@ class WidgetGraphicsTest {
     }
 
     @Test
-    fun `activity hr line is grey below 95 percent and red at peaks`() {
+    fun `activity hr line is cool grey below 95 percent and coral at peaks`() {
         val maxHr = 200
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(100, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(120, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(150, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(189, maxHr))
-        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(190, maxHr))
-        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(200, maxHr))
-        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(220, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, activityHrDiffusionColorArgb())
-        assertTrue(activityHrDiffusionColorArgb() != HR_HIGH_RED)
+        // 189/200 = 0.945 → normal; 190/200 = 0.95 → peak
+        assertEquals(ACTIVITY_HR_LINE_NORMAL, activityHrLineColorArgb(100, maxHr))
+        assertEquals(ACTIVITY_HR_LINE_NORMAL, activityHrLineColorArgb(189, maxHr))
+        assertFalse(isActivityHrPeak(189, maxHr))
+        assertEquals(ACTIVITY_HR_LINE_PEAK, activityHrLineColorArgb(190, maxHr))
+        assertTrue(isActivityHrPeak(190, maxHr))
+        assertEquals(ACTIVITY_HR_LINE_PEAK, activityHrLineColorArgb(200, maxHr))
+        assertEquals(0xFFC8D0D6.toInt(), ACTIVITY_HR_LINE_NORMAL)
+        assertEquals(0xFF52616B.toInt(), ACTIVITY_HR_DIFFUSION_NORMAL)
+        assertEquals(0xFFF4514F.toInt(), ACTIVITY_HR_LINE_PEAK)
+        assertEquals(ACTIVITY_HR_DIFFUSION_PEAK, ACTIVITY_HR_LINE_PEAK)
+        assertEquals(ACTIVITY_HR_DIFFUSION_NORMAL, activityHrNormalDiffusionColorArgb())
+        assertEquals(ACTIVITY_HR_DIFFUSION_PEAK, activityHrPeakDiffusionColorArgb())
+        assertFalse(activityHrPeakDiffusionSelected(189.8f, maxHr))
+        assertTrue(activityHrPeakDiffusionSelected(190f, maxHr))
     }
 
     @Test
@@ -447,15 +453,15 @@ class WidgetGraphicsTest {
     }
 
     @Test
-    fun `activity hr diffusion is zone colored short and fades to transparent`() {
+    fun `activity hr diffusion is slate short peak shallower and fades to transparent`() {
         val plotHeight = 80f
-        val depth = activityHrDiffusionDepthPx(plotHeight)
-        assertTrue("depth $depth", depth in (34f * LayoutMetrics.RENDER_SCALE)..(52f * LayoutMetrics.RENDER_SCALE + 0.01f))
+        val depth = activityHrNormalDiffusionDepthPx(plotHeight)
+        assertTrue("depth $depth", depth in (10f * LayoutMetrics.RENDER_SCALE)..(18f * LayoutMetrics.RENDER_SCALE + 0.01f))
         assertTrue(depth < plotHeight)
-        assertEquals(0x60, activityHrDiffusionStartAlpha())
+        assertEquals(0x4A, activityHrNormalDiffusionStartAlpha())
         val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
-        assertTrue(peakDepth < depth)
-        assertEquals(0x58, activityHrPeakDiffusionStartAlpha())
+        assertTrue("peak $peakDepth vs normal $depth", peakDepth < depth)
+        assertEquals(0x4E, activityHrPeakDiffusionStartAlpha())
 
         val midLineY = 20f
         val bottom = 100f
@@ -467,11 +473,11 @@ class WidgetGraphicsTest {
         assertTrue(activityHrDiffusionExtendsToBaseline(nearBaselineY, depth, bottom))
         assertEquals(bottom, activityHrDiffusionBottomY(nearBaselineY, depth, bottom), 0.01f)
 
-        val neutral = activityHrDiffusionColorArgb()
-        val red = heartRateZoneColorArgb(200, 200)
-        assertEquals(activityHrDiffusionStartAlpha(), argbWithAlpha(neutral, activityHrDiffusionStartAlpha()) ushr 24)
-        assertEquals(0, argbWithAlpha(red, 0) ushr 24)
-        assertEquals(neutral and 0x00FFFFFF, argbWithAlpha(neutral, activityHrDiffusionStartAlpha()) and 0x00FFFFFF)
-        assertTrue(neutral != red)
+        val slate = activityHrNormalDiffusionColorArgb()
+        val peak = activityHrPeakDiffusionColorArgb()
+        assertEquals(activityHrNormalDiffusionStartAlpha(), argbWithAlpha(slate, activityHrNormalDiffusionStartAlpha()) ushr 24)
+        assertEquals(0, argbWithAlpha(peak, 0) ushr 24)
+        assertEquals(slate and 0x00FFFFFF, argbWithAlpha(slate, activityHrNormalDiffusionStartAlpha()) and 0x00FFFFFF)
+        assertTrue(slate != peak)
     }
 }

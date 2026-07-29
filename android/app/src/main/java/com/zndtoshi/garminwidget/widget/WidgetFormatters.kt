@@ -15,8 +15,19 @@ internal enum class HrvMarkerKind { CIRCLE, SQUARE, TRIANGLE, NEUTRAL }
 
 internal fun clampOpacityPercent(value: Int?): Int = (value ?: 88).coerceIn(0, 100)
 
-internal fun opacityPercentToAlpha(opacityPercent: Int): Float =
-    clampOpacityPercent(opacityPercent) / 100f
+/**
+ * Extra darkening layered onto the configured opacity so bright wallpapers stay
+ * readable without replacing the user's transparency preference.
+ */
+internal const val WIDGET_SCRIM_EXTRA_ALPHA = 0.05f
+
+internal fun opacityPercentToAlpha(opacityPercent: Int): Float {
+    val configured = clampOpacityPercent(opacityPercent) / 100f
+    return configured + (1f - configured) * WIDGET_SCRIM_EXTRA_ALPHA
+}
+
+internal fun widgetBackgroundRemainsTranslucent(opacityPercent: Int): Boolean =
+    opacityPercentToAlpha(opacityPercent) < 1f
 
 internal fun formatSleepDuration(seconds: Int?): String {
     if (seconds == null || seconds <= 0) return "—"
@@ -188,6 +199,37 @@ internal fun batteryStressPresentation(bodyBattery: Int?, stress: Int?): Battery
 internal const val HEALTH_PANEL_CARD_COLOR = 0x0CFFFFFF
 internal const val HEALTH_TRAILING_VALUE_FONT_SP = 13f
 internal const val ACTIVITY_MAX_HR_FONT_SP = 11f
+internal const val ACTIVITY_TITLE_FONT_SP = 10f
+
+/** Fraction of chart width reserved for the left-aligned activity name (avoids Max HR). */
+internal const val ACTIVITY_NAME_MAX_WIDTH_FRACTION = 0.40f
+
+internal fun activityNameOverlapsCenteredMaxHr(nameWidthFraction: Float): Boolean =
+    nameWidthFraction > 0.48f
+
+/** Activity card: square top corners, 24dp rounded bottom (matches drawable). */
+internal data class ActivityCardCornerSpec(
+    val topLeftRadiusDp: Float = 0f,
+    val topRightRadiusDp: Float = 0f,
+    val bottomLeftRadiusDp: Float = LayoutMetrics.ACTIVITY_CARD_BOTTOM_CORNER_RADIUS_DP.toFloat(),
+    val bottomRightRadiusDp: Float = LayoutMetrics.ACTIVITY_CARD_BOTTOM_CORNER_RADIUS_DP.toFloat(),
+)
+
+internal fun activityCardCornerSpec(): ActivityCardCornerSpec = ActivityCardCornerSpec()
+
+/**
+ * Charcoal activity-card scrim (~18% top → ~12% bottom). Kept translucent and
+ * darker than the near-invisible white `#0CFFFFFF` health-card tint.
+ */
+internal data class ActivityCardScrimSpec(
+    val topArgb: Int = 0x2E000000,
+    val bottomArgb: Int = 0x1F000000,
+) {
+    val topAlpha: Float get() = ((topArgb ushr 24) and 0xff) / 255f
+    val bottomAlpha: Float get() = ((bottomArgb ushr 24) and 0xff) / 255f
+}
+
+internal fun activityCardScrimSpec(): ActivityCardScrimSpec = ActivityCardScrimSpec()
 
 internal fun healthPanelsUseCardBackground(): Boolean = true
 

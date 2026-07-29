@@ -165,7 +165,7 @@ private fun TwoRowLayout(
         heightDp = spec.activityDp.dp,
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
-        chartWidthDp = (spec.contentWidthDp - 22f).dp,
+        chartWidthDp = spec.activityChartContentWidthDp.dp,
     )
 }
 
@@ -412,17 +412,20 @@ private fun ActivityStrip(
         modifier = GlanceModifier
             .fillMaxWidth()
             .height(heightDp)
-            .padding(horizontal = 3.dp),
+            .padding(horizontal = LayoutMetrics.ACTIVITY_CARD_OUTER_HORIZONTAL_PADDING_DP.dp),
     ) {
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(ImageProvider(R.drawable.activity_card_background))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
+                .padding(
+                    horizontal = LayoutMetrics.ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP.dp,
+                    vertical = LayoutMetrics.ACTIVITY_CARD_INNER_VERTICAL_PADDING_DP.dp,
+                ),
         ) {
             Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopStart) {
                 Row(
-                    modifier = GlanceModifier.width((chartWidthDp.value * 0.40f).dp),
+                    modifier = GlanceModifier.width((chartWidthDp.value * ACTIVITY_NAME_MAX_WIDTH_FRACTION).dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Image(
@@ -433,7 +436,11 @@ private fun ActivityStrip(
                     Spacer(GlanceModifier.width(4.dp))
                     Text(
                         text = activity.name ?: activity.typeKey ?: "Activity",
-                        style = TextStyle(color = ColorProvider(Color.White), fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                        style = TextStyle(
+                            color = ColorProvider(Color(0xFFF2F5F7)),
+                            fontSize = ACTIVITY_TITLE_FONT_SP.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
                         maxLines = 1,
                     )
                 }
@@ -442,7 +449,7 @@ private fun ActivityStrip(
                         Text(
                             text = "Max HR ${formatHr(activity.maxHeartRate)}",
                             style = TextStyle(
-                                color = ColorProvider(Color.White),
+                                color = ColorProvider(Color(0xFFF8FAFB)),
                                 fontSize = ACTIVITY_MAX_HR_FONT_SP.sp,
                                 fontWeight = FontWeight.Bold,
                             ),
@@ -452,7 +459,7 @@ private fun ActivityStrip(
                 }
             }
             if (showHrChart && activity.heartRateTimeline.size >= 2) {
-                Spacer(GlanceModifier.height(2.dp))
+                Spacer(GlanceModifier.height(LayoutMetrics.ACTIVITY_HEADER_CHART_GAP_DP.dp))
                 ActivityHrChartImage(
                     timeline = activity.heartRateTimeline,
                     widthDp = chartWidthDp,
@@ -463,7 +470,6 @@ private fun ActivityStrip(
         }
     }
 }
-
 @Suppress("UNUSED_PARAMETER")
 internal fun resolveVisibleStatus(configured: Boolean, storedStatus: LocalStatus, refreshRevision: Long): LocalStatus {
     return if (configured) storedStatus else LocalStatus.NOT_CONFIGURED

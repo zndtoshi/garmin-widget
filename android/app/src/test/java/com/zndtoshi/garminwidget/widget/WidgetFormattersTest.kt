@@ -46,7 +46,18 @@ class WidgetFormattersTest {
         assertTrue(spec.panelChartWidthDp > 0f)
         assertTrue(spec.panelChartHeightDp > 0f)
         assertTrue(spec.showActivityHrChart)
-        assertTrue(spec.activityHrChartHeightDp >= LayoutMetrics.MIN_ACTIVITY_HR_CHART_DP)
+        assertTrue(spec.activityHrChartHeightDp > 0)
+        assertTrue(spec.activityInternalBudgetFits)
+        assertTrue(spec.activityAlignsWithHealthRowInsets)
+        assertEquals(
+            LayoutMetrics.activityHrChartHeightDp(spec.activityDp),
+            spec.activityHrChartHeightDp,
+        )
+        assertEquals(
+            LayoutMetrics.activityChartContentWidthDp(spec.contentWidthDp),
+            spec.activityChartContentWidthDp,
+            0.01f,
+        )
         assertFalse(spec.hasStandaloneHealthChart)
         assertFalse(spec.hasMetricsRow)
         assertFalse(spec.hasSleepLegend)
@@ -95,6 +106,8 @@ class WidgetFormattersTest {
             assertTrue(spec.hrvGraphHeightDp > 0f)
             assertTrue(spec.panelChartHeightDp > 0f)
             assertTrue(spec.showActivityHrChart)
+            assertTrue("activity budget for $size", spec.activityInternalBudgetFits)
+            assertTrue(spec.activityAlignsWithHealthRowInsets)
             assertFalse(spec.hasStandaloneHealthChart)
             assertFalse(spec.hasMetricsRow)
             assertFalse(spec.hasSleepLegend)
@@ -158,13 +171,36 @@ class WidgetFormattersTest {
     }
 
     @Test
-    fun `clamps opacity and alpha`() {
+    fun `clamps opacity and alpha with slight scrim darkening`() {
         assertEquals(88, clampOpacityPercent(null))
         assertEquals(0, clampOpacityPercent(-3))
         assertEquals(100, clampOpacityPercent(120))
-        assertEquals(0.88f, opacityPercentToAlpha(88), 0.0001f)
+        assertEquals(0.88f + (1f - 0.88f) * WIDGET_SCRIM_EXTRA_ALPHA, opacityPercentToAlpha(88), 0.0001f)
+        assertTrue(opacityPercentToAlpha(88) > 0.88f)
+        assertTrue(opacityPercentToAlpha(50) > 0.50f)
+        assertEquals(1f, opacityPercentToAlpha(100), 0.0001f)
+        assertTrue(widgetBackgroundRemainsTranslucent(88))
+        assertFalse(widgetBackgroundRemainsTranslucent(100))
     }
 
+    @Test
+    fun `activity card chrome is charcoal with square top and rounded bottom`() {
+        val corners = activityCardCornerSpec()
+        assertEquals(0f, corners.topLeftRadiusDp, 0.01f)
+        assertEquals(0f, corners.topRightRadiusDp, 0.01f)
+        assertEquals(24f, corners.bottomLeftRadiusDp, 0.01f)
+        assertEquals(24f, corners.bottomRightRadiusDp, 0.01f)
+        val scrim = activityCardScrimSpec()
+        assertEquals(0x2E000000, scrim.topArgb)
+        assertEquals(0x1F000000, scrim.bottomArgb)
+        assertTrue(scrim.topAlpha in 0.16f..0.18f + 0.01f)
+        assertTrue(scrim.bottomAlpha in 0.10f..0.12f + 0.01f)
+        assertTrue(scrim.topAlpha > scrim.bottomAlpha)
+        assertEquals(0.40f, ACTIVITY_NAME_MAX_WIDTH_FRACTION, 0.01f)
+        assertFalse(activityNameOverlapsCenteredMaxHr(ACTIVITY_NAME_MAX_WIDTH_FRACTION))
+        assertTrue(activityNameOverlapsCenteredMaxHr(0.55f))
+        assertTrue(ACTIVITY_MAX_HR_FONT_SP >= 11f)
+    }
     @Test
     fun `formats duration and stage labels`() {
         assertEquals("6h 29m", formatSleepDuration(23340))

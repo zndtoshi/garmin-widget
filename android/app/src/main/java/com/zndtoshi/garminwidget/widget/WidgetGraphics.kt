@@ -122,9 +122,11 @@ internal object WidgetPalette {
     const val hrvOrange = 0xFFFF9800.toInt()
     const val hrvRed = 0xFFF44336.toInt()
     const val hrvGray = 0xFF90A4AE.toInt()
-    const val activityHr = 0xFFE57373.toInt()
-    const val activityHrFill = 0x44E57373
-    const val activityHrMax = 0xFFFF8A80.toInt()
+    /** @see ACTIVITY_HR_LINE_NORMAL */
+    const val activityHr = 0xFFC8D0D6.toInt()
+    const val activityHrFill = 0x4452616B
+    /** @see ACTIVITY_HR_LINE_PEAK */
+    const val activityHrMax = 0xFFF4514F.toInt()
 }
 
 /**
@@ -975,10 +977,12 @@ internal fun buildActivityHrChartGeometry(
     return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
-internal val HR_NEUTRAL_GRAY = 0xFF9AA0A6.toInt()
-internal val HR_HIGH_RED = 0xFFF44336.toInt()
+internal val ACTIVITY_HR_LINE_NORMAL = 0xFFC8D0D6.toInt() // #C8D0D6 light cool grey
+internal val ACTIVITY_HR_DIFFUSION_NORMAL = 0xFF52616B.toInt() // #52616B dark slate-blue
+internal val ACTIVITY_HR_LINE_PEAK = 0xFFF4514F.toInt() // #F4514F coral red
+internal val ACTIVITY_HR_DIFFUSION_PEAK = ACTIVITY_HR_LINE_PEAK
 
-internal fun activityHrDiffusionColorArgb(): Int = HR_NEUTRAL_GRAY
+internal const val ACTIVITY_HR_PEAK_RATIO = 0.95f
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
 internal fun resolveActivityHrCeiling(
@@ -1005,15 +1009,29 @@ internal fun lerpColorArgb(from: Int, to: Int, t: Float): Int {
         b.coerceIn(0, 255)
 }
 
+internal fun activityHrPeakRatio(heartRate: Float, ceiling: Int): Float =
+    heartRate / ceiling.coerceAtLeast(1).toFloat()
+
+internal fun isActivityHrPeak(heartRate: Int, maxHr: Int): Boolean =
+    activityHrPeakRatio(heartRate.toFloat(), maxHr) >= ACTIVITY_HR_PEAK_RATIO
+
+/** Peak diffusion applies only to interpolated subsegments at/above the 95% threshold. */
+internal fun activityHrPeakDiffusionSelected(midpointHr: Float, ceiling: Int): Boolean =
+    activityHrPeakRatio(midpointHr, ceiling) >= ACTIVITY_HR_PEAK_RATIO
+
 /**
- * Solid neutral grey activity line below 95% of max HR. Only samples at
- * 95% or above use the high-intensity red treatment.
+ * Thin activity HR stroke: cool grey below 95% of resolved max HR, coral red at/above.
  */
-internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int {
-    val ceiling = maxHr.coerceAtLeast(1)
-    val ratio = heartRate.toFloat() / ceiling.toFloat()
-    return if (ratio >= 0.95f) HR_HIGH_RED else HR_NEUTRAL_GRAY
-}
+internal fun activityHrLineColorArgb(heartRate: Int, maxHr: Int): Int =
+    if (isActivityHrPeak(heartRate, maxHr)) ACTIVITY_HR_LINE_PEAK else ACTIVITY_HR_LINE_NORMAL
+
+@Deprecated("Use activityHrLineColorArgb", ReplaceWith("activityHrLineColorArgb(heartRate, maxHr)"))
+internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int =
+    activityHrLineColorArgb(heartRate, maxHr)
+
+internal fun activityHrNormalDiffusionColorArgb(): Int = ACTIVITY_HR_DIFFUSION_NORMAL
+
+internal fun activityHrPeakDiffusionColorArgb(): Int = ACTIVITY_HR_DIFFUSION_PEAK
 
 /** Target ~1.25dp stroke at render scale 2 → ~2.5px. */
 internal fun activityHrStrokeWidthPx(heightPx: Int, renderScale: Float = LayoutMetrics.RENDER_SCALE): Float {
@@ -1027,27 +1045,42 @@ internal fun activityHrMarkerRadiusPx(heightPx: Int, renderScale: Float = Layout
 }
 
 /**
- * Short vertical diffusion under the HR line (~10–18dp), scaled for chart height.
- * Does not target the baseline — only reaches it when the line is already that close.
+ * Slate diffusion under the full HR curve (~10–18dp), scaled for chart height.
+ * Bounded — reaches the baseline only when the line is already that close.
  */
-internal fun activityHrDiffusionDepthPx(
+internal fun activityHrNormalDiffusionDepthPx(
     plotHeightPx: Float,
     renderScale: Float = LayoutMetrics.RENDER_SCALE,
 ): Float {
-    val target = 46f * renderScale
+    val target = 14f * renderScale
     return target
-        .coerceIn(34f * renderScale, 52f * renderScale)
-        .coerceAtMost((plotHeightPx * 0.90f).coerceAtLeast(8f))
+        .coerceIn(10f * renderScale, 18f * renderScale)
+        .coerceAtMost((plotHeightPx * 0.42f).coerceAtLeast(8f))
 }
 
-internal fun activityHrDiffusionStartAlpha(): Int = 0x60
+/** @see activityHrNormalDiffusionDepthPx */
+internal fun activityHrDiffusionDepthPx(
+    plotHeightPx: Float,
+    renderScale: Float = LayoutMetrics.RENDER_SCALE,
+): Float = activityHrNormalDiffusionDepthPx(plotHeightPx, renderScale)
 
+internal fun activityHrNormalDiffusionStartAlpha(): Int = 0x4A
+
+internal fun activityHrDiffusionStartAlpha(): Int = activityHrNormalDiffusionStartAlpha()
+
+/** Shallower coral glow only under ≥95% peak sections. */
 internal fun activityHrPeakDiffusionDepthPx(
     plotHeightPx: Float,
     renderScale: Float = LayoutMetrics.RENDER_SCALE,
-): Float = (12f * renderScale).coerceAtMost((plotHeightPx * 0.28f).coerceAtLeast(6f))
+): Float {
+    val normal = activityHrNormalDiffusionDepthPx(plotHeightPx, renderScale)
+    val target = 7.5f * renderScale
+    return target
+        .coerceIn(5f * renderScale, 11f * renderScale)
+        .coerceAtMost((normal * 0.55f).coerceAtLeast(6f))
+}
 
-internal fun activityHrPeakDiffusionStartAlpha(): Int = 0x58
+internal fun activityHrPeakDiffusionStartAlpha(): Int = 0x4E
 
 internal fun argbWithAlpha(colorRgb: Int, alpha: Int): Int =
     (alpha.coerceIn(0, 255) shl 24) or (colorRgb and 0x00FFFFFF)
@@ -1068,7 +1101,7 @@ internal fun drawActivityHrDiffusionStrip(
     color1: Int,
     depthPx: Float,
     plotBottom: Float,
-    startAlpha: Int = activityHrDiffusionStartAlpha(),
+    startAlpha: Int = activityHrNormalDiffusionStartAlpha(),
 ) {
     if (depthPx <= 0.5f) return
     val y0b = activityHrDiffusionBottomY(y0, depthPx, plotBottom)
@@ -1112,12 +1145,12 @@ internal fun drawActivityHrChartBitmap(
     val bmp = Bitmap.createBitmap(geo.widthPx, geo.heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#45606B75")
+        color = Color.parseColor("#55606B88")
         style = Paint.Style.STROKE
         strokeWidth = 1f
     }
     val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#A8B0BEC5")
+        color = Color.parseColor("#C5D0D8")
         textSize = 10f
     }
     val midHr = (geo.minHr + geo.maxHr) / 2
@@ -1136,41 +1169,20 @@ internal fun drawActivityHrChartBitmap(
     }
 
     val plotHeight = geo.bottom - geo.top
-    val depth = activityHrDiffusionDepthPx(plotHeight)
+    val normalDepth = activityHrNormalDiffusionDepthPx(plotHeight)
+    val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
+    val slate = activityHrNormalDiffusionColorArgb()
+    val peakFill = activityHrPeakDiffusionColorArgb()
     canvas.save()
     canvas.clipRect(geo.left, geo.top, geo.right, geo.bottom)
     for (i in 0 until geo.points.lastIndex) {
         val a = geo.points[i]
         val b = geo.points[i + 1]
-        val c0 = activityHrDiffusionColorArgb()
-        val c1 = activityHrDiffusionColorArgb()
         val span = abs(b.x - a.x)
         val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
         for (s in 0 until steps) {
             val t0 = s.toFloat() / steps.toFloat()
             val t1 = (s + 1).toFloat() / steps.toFloat()
-            val x0 = a.x + (b.x - a.x) * t0
-            val x1 = a.x + (b.x - a.x) * t1
-            val y0 = a.y + (b.y - a.y) * t0
-            val y1 = a.y + (b.y - a.y) * t1
-            val col0 = lerpColorArgb(c0, c1, t0)
-            val col1 = lerpColorArgb(c0, c1, t1)
-            drawActivityHrDiffusionStrip(canvas, x0, y0, x1, y1, col0, col1, depth, geo.bottom)
-        }
-    }
-
-    // Add a short red glow only immediately beneath samples at or above 95% of max HR.
-    val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
-    for (i in 0 until geo.points.lastIndex) {
-        val a = geo.points[i]
-        val b = geo.points[i + 1]
-        val span = abs(b.x - a.x)
-        val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
-        for (s in 0 until steps) {
-            val t0 = s.toFloat() / steps.toFloat()
-            val t1 = (s + 1).toFloat() / steps.toFloat()
-            val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
-            if (midpointHr / ceiling.toFloat() < 0.95f) continue
             val x0 = a.x + (b.x - a.x) * t0
             val x1 = a.x + (b.x - a.x) * t1
             val y0 = a.y + (b.y - a.y) * t0
@@ -1181,12 +1193,27 @@ internal fun drawActivityHrChartBitmap(
                 y0,
                 x1,
                 y1,
-                HR_HIGH_RED,
-                HR_HIGH_RED,
-                peakDepth,
+                slate,
+                slate,
+                normalDepth,
                 geo.bottom,
-                activityHrPeakDiffusionStartAlpha(),
+                activityHrNormalDiffusionStartAlpha(),
             )
+            val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
+            if (activityHrPeakDiffusionSelected(midpointHr, ceiling)) {
+                drawActivityHrDiffusionStrip(
+                    canvas,
+                    x0,
+                    y0,
+                    x1,
+                    y1,
+                    peakFill,
+                    peakFill,
+                    peakDepth,
+                    geo.bottom,
+                    activityHrPeakDiffusionStartAlpha(),
+                )
+            }
         }
     }
 
@@ -1194,8 +1221,8 @@ internal fun drawActivityHrChartBitmap(
     for (i in 0 until geo.points.lastIndex) {
         val a = geo.points[i]
         val b = geo.points[i + 1]
-        val c0 = heartRateZoneColorArgb(a.value, ceiling)
-        val c1 = heartRateZoneColorArgb(b.value, ceiling)
+        val c0 = activityHrLineColorArgb(a.value, ceiling)
+        val c1 = activityHrLineColorArgb(b.value, ceiling)
         val segPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE
             strokeWidth = stroke
@@ -1209,7 +1236,7 @@ internal fun drawActivityHrChartBitmap(
 
     geo.maxPoint?.let { peak ->
         val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = heartRateZoneColorArgb(peak.value, ceiling)
+            color = activityHrLineColorArgb(peak.value, ceiling)
             style = Paint.Style.FILL
         }
         canvas.drawCircle(peak.x, peak.y, activityHrMarkerRadiusPx(geo.heightPx), marker)
