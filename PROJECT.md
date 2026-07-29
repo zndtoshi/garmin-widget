@@ -2,7 +2,7 @@
 
 Private personal-use project. This document defines architecture, API, payload schema, backend responsibilities, and milestones.
 
-Related docs: [README.md](README.md), [docs/architecture.md](docs/architecture.md), [docs/implementation-plan.md](docs/implementation-plan.md), [shared/widget-response.example.json](shared/widget-response.example.json).
+Related docs: [README.md](README.md), [docs/architecture.md](docs/architecture.md), [docs/implementation-plan.md](docs/implementation-plan.md), [docs/render-frankfurt-migration.md](docs/render-frankfurt-migration.md), [shared/widget-response.example.json](shared/widget-response.example.json).
 
 ## Architecture
 

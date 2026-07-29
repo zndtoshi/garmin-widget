@@ -37,6 +37,14 @@ def render_blueprint(repo_root: Path) -> dict[str, Any]:
     return loaded
 
 
+@pytest.fixture()
+def frankfurt_render_blueprint(repo_root: Path) -> dict[str, Any]:
+    raw = (repo_root / "render-frankfurt.yaml").read_text(encoding="utf-8")
+    loaded = yaml.safe_load(raw)
+    assert isinstance(loaded, dict)
+    return loaded
+
+
 def test_resolve_port_defaults_and_env() -> None:
     assert resolve_port(environ={}) == DEFAULT_PORT
     assert resolve_port(environ={"PORT": "10000"}) == 10000
@@ -126,6 +134,41 @@ def test_render_blueprint_contains_no_secret_or_personal_values(
             assert "secret" not in value.lower()
             assert "@" not in value
             assert ".onrender.com" not in value
+
+
+def test_frankfurt_migration_blueprint_is_isolated_and_secret_free(
+    repo_root: Path,
+    frankfurt_render_blueprint: dict[str, Any],
+) -> None:
+    services = frankfurt_render_blueprint["services"]
+    assert isinstance(services, list)
+    assert len(services) == 1
+
+    service = services[0]
+    assert service["name"] == "garmin-widget-backend-eu"
+    assert service["region"] == "frankfurt"
+    assert service["runtime"] == "docker"
+    assert service["dockerfilePath"] == "./backend/Dockerfile"
+    assert service["dockerContext"] == "./backend"
+    assert service["healthCheckPath"] == "/health"
+    assert service["numInstances"] == 1
+
+    disk = service["disk"]
+    assert disk["name"] == "garmin-widget-data-eu"
+    assert disk["mountPath"] == "/var/data"
+    assert disk["sizeGB"] == 1
+
+    env_vars = {item["key"]: item for item in service["envVars"]}
+    for key in SECRET_ENV_KEYS:
+        entry = env_vars[key]
+        assert entry.get("sync") is False
+        assert "value" not in entry
+        assert "generateValue" not in entry
+
+    raw = (repo_root / "render-frankfurt.yaml").read_text(encoding="utf-8")
+    assert "Bearer " not in raw
+    assert "@gmail.com" not in raw
+    assert "password=" not in raw
 
 
 def test_app_starts_with_representative_render_env(
