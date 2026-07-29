@@ -58,11 +58,11 @@ class WidgetFormattersTest {
         assertTrue(spec.sleepInternalBudgetFits)
         assertTrue(spec.healthChartsBottomAligned)
         assertEquals(
-            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP,
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
             spec.healthPanelContentHeightDp - (spec.hrvGraphHeightDp.roundToInt() + LayoutMetrics.HRV_HEADER_DP + LayoutMetrics.HRV_STATUS_DP),
         )
         assertEquals(
-            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP,
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
             spec.healthPanelContentHeightDp - (spec.panelChartHeightDp.roundToInt() + LayoutMetrics.BODY_BATTERY_HEADER_DP),
         )
         assertEquals(18f, sleepScoreFontSp(spec.widthDp), 0.01f)

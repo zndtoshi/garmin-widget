@@ -71,7 +71,8 @@ internal data class AdaptiveLayoutSpec(
         get() = LayoutMetrics.HRV_HEADER_DP +
             LayoutMetrics.HRV_STATUS_DP +
             hrvGraphHeightDp.roundToInt() +
-            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP +
+            LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2
 
     val hrvInternalBudgetFits: Boolean
         get() = hrvInternalUsedHeightDp <= healthPanelContentHeightDp
@@ -80,7 +81,8 @@ internal data class AdaptiveLayoutSpec(
     val bodyBatteryInternalUsedHeightDp: Int
         get() = LayoutMetrics.BODY_BATTERY_HEADER_DP +
             panelChartHeightDp.roundToInt() +
-            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP +
+            LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2
 
     val bodyBatteryInternalBudgetFits: Boolean
         get() = bodyBatteryInternalUsedHeightDp <= healthPanelContentHeightDp
@@ -131,6 +133,8 @@ internal object LayoutMetrics {
     /** Matches EqualPanel vertical padding so chart bottoms share one inset. */
     const val HEALTH_PANEL_VERTICAL_PADDING_DP = 2
     const val HEALTH_PANEL_HORIZONTAL_PADDING_DP = 3
+    const val HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP = 4
+    const val HEALTH_DATA_INNER_VERTICAL_PADDING_DP = 3
     /** Shared bottom inset inside Sleep / HRV / Body Battery cards. */
     const val HEALTH_CARD_BOTTOM_INSET_DP = 2
 
@@ -211,12 +215,14 @@ internal object LayoutMetrics {
             (contentH - HEALTH_CARD_BOTTOM_INSET_DP).toFloat(),
         ).coerceIn(1f, contentH.toFloat().coerceAtLeast(1f))
             .coerceAtLeast(MIN_SLEEP_RING_DP.toFloat().coerceAtMost(contentH.toFloat()))
-        val graphWidth = (panelWidth - 22f).coerceIn(56f, 120f)
+        val graphWidth = (panelWidth - 22f - HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP * 2f)
+            .coerceIn(48f, 112f)
         // Fill remaining card height under headers so chart baselines share the bottom inset.
         // Do not coerce upward past the remaining budget on short health rows.
-        val hrvHeight = healthPanelChartHeightDp(health, HRV_HEADER_DP, HRV_STATUS_DP)
+        val innerVerticalPadding = HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2
+        val hrvHeight = (healthPanelChartHeightDp(health, HRV_HEADER_DP, HRV_STATUS_DP) - innerVerticalPadding)
             .coerceIn(1f, contentH.toFloat())
-        val panelChartHeight = healthPanelChartHeightDp(health, BODY_BATTERY_HEADER_DP, statusDp = 0)
+        val panelChartHeight = (healthPanelChartHeightDp(health, BODY_BATTERY_HEADER_DP, statusDp = 0) - innerVerticalPadding)
             .coerceIn(1f, contentH.toFloat())
 
         return AdaptiveLayoutSpec(

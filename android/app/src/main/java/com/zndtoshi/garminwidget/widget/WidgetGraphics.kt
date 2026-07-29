@@ -469,14 +469,16 @@ internal fun drawHrvGraphBitmap(
         canvas.drawPath(
             path,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = 0xFF90CAF9.toInt()
+                color = WidgetPalette.battery
                 style = Paint.Style.STROKE
-                strokeWidth = 2.5f
+                strokeWidth = batteryCurveStrokeWidthPx((geometry.plotBottom - geometry.plotTop).roundToInt())
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
             },
         )
     }
 
-    val markerSize = max(8f, geometry.heightPx * 0.18f)
+    val markerSize = (geometry.heightPx * 0.10f).coerceIn(5f, 9f)
     for (slot in geometry.slots) {
         val y = slot.y
         if (y == null) {
@@ -1065,10 +1067,10 @@ internal fun activityHrDiffusionDepthPx(
     plotHeightPx: Float,
     renderScale: Float = LayoutMetrics.RENDER_SCALE,
 ): Float {
-    val target = 20f * renderScale
+    val target = 32f * renderScale
     return target
-        .coerceIn(14f * renderScale, 24f * renderScale)
-        .coerceAtMost((plotHeightPx * 0.52f).coerceAtLeast(8f))
+        .coerceIn(24f * renderScale, 38f * renderScale)
+        .coerceAtMost((plotHeightPx * 0.75f).coerceAtLeast(8f))
 }
 
 internal fun activityHrDiffusionStartAlpha(): Int = 0x3A

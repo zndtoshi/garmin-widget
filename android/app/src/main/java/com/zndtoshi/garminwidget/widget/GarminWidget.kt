@@ -17,7 +17,6 @@ import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
-import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.currentState
@@ -80,7 +79,6 @@ private fun WidgetContent(data: WidgetResponse?, status: LocalStatus, opacityPer
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .cornerRadius(22.dp)
             .background(ColorProvider(Color(0xFF101B2A).copy(alpha = opacityPercentToAlpha(opacityPercent))))
             .padding(LayoutMetrics.OUTER_PADDING_DP.dp),
     ) {
@@ -167,7 +165,7 @@ private fun TwoRowLayout(
         heightDp = spec.activityDp.dp,
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
-        chartWidthDp = (spec.contentWidthDp - 18f).dp,
+        chartWidthDp = (spec.contentWidthDp - 22f).dp,
     )
 }
 
@@ -190,7 +188,11 @@ private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
 @Composable
 private fun HrvPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
     val header = hrvHeaderPresentation(data.overnightHrv, data.hrvStatus, spec.showPanelTitles)
-    Column(modifier = GlanceModifier.fillMaxSize()) {
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .padding(horizontal = 4.dp, vertical = 3.dp),
+    ) {
         HealthPanelHeader(HealthPanelIcon.HRV, header)
         if (header.supportingLeft != null) {
             Text(
@@ -222,7 +224,11 @@ private fun BodyBatteryPanel(
     rangeEnd: Instant?,
 ) {
     val header = bodyBatteryHeaderPresentation(data.bodyBattery, spec.showPanelTitles)
-    Column(modifier = GlanceModifier.fillMaxSize()) {
+    Column(
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .padding(horizontal = 4.dp, vertical = 3.dp),
+    ) {
         HealthPanelHeader(HealthPanelIcon.BODY_BATTERY, header)
         Spacer(GlanceModifier.defaultWeight())
         CombinedChartImage(
@@ -412,7 +418,7 @@ private fun ActivityStrip(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(ImageProvider(R.drawable.activity_card_background))
-                .padding(horizontal = 6.dp, vertical = 4.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
             Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
