@@ -167,7 +167,7 @@ private fun TwoRowLayout(
         heightDp = spec.activityDp.dp,
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
-        chartWidthDp = (spec.contentWidthDp - 12f).dp,
+        chartWidthDp = (spec.contentWidthDp - 18f).dp,
     )
 }
 
@@ -402,48 +402,54 @@ private fun ActivityStrip(
         return
     }
     val typeKey = activityTypeIcon(activity.typeKey)
-    Column(
+    Box(
         modifier = GlanceModifier
             .fillMaxWidth()
             .height(heightDp)
-            .background(ImageProvider(R.drawable.activity_card_background))
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .padding(horizontal = 3.dp),
     ) {
-        Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    provider = ImageProvider(drawActivityIconBitmap(typeKey, LayoutMetrics.dpToRenderPx(18f))),
-                    contentDescription = activityIconContentDescription(activity.typeKey),
-                    modifier = GlanceModifier.width(16.dp).height(16.dp),
-                )
-                Spacer(GlanceModifier.width(4.dp))
-                Text(
-                    text = activity.name ?: activity.typeKey ?: "Activity",
-                    style = TextStyle(color = ColorProvider(Color.White), fontSize = 10.sp, fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                )
-                if (activity.maxHeartRate != null) {
-                    Spacer(GlanceModifier.width(6.dp))
+        Column(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(ImageProvider(R.drawable.activity_card_background))
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+        ) {
+            Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        provider = ImageProvider(drawActivityIconBitmap(typeKey, LayoutMetrics.dpToRenderPx(18f))),
+                        contentDescription = activityIconContentDescription(activity.typeKey),
+                        modifier = GlanceModifier.width(16.dp).height(16.dp),
+                    )
+                    Spacer(GlanceModifier.width(4.dp))
                     Text(
-                        text = "Max HR ${formatHr(activity.maxHeartRate)}",
-                        style = TextStyle(
-                            color = ColorProvider(Color.White),
-                            fontSize = ACTIVITY_MAX_HR_FONT_SP.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
+                        text = activity.name ?: activity.typeKey ?: "Activity",
+                        style = TextStyle(color = ColorProvider(Color.White), fontSize = 10.sp, fontWeight = FontWeight.Bold),
                         maxLines = 1,
                     )
+                    if (activity.maxHeartRate != null) {
+                        Spacer(GlanceModifier.width(6.dp))
+                        Text(
+                            text = "Max HR ${formatHr(activity.maxHeartRate)}",
+                            style = TextStyle(
+                                color = ColorProvider(Color.White),
+                                fontSize = ACTIVITY_MAX_HR_FONT_SP.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
-        }
-        if (showHrChart && activity.heartRateTimeline.size >= 2) {
-            Spacer(GlanceModifier.height(2.dp))
-            ActivityHrChartImage(
-                timeline = activity.heartRateTimeline,
-                widthDp = chartWidthDp,
-                heightDp = hrChartHeightDp,
-                maxHeartRate = activity.maxHeartRate,
-            )
+            if (showHrChart && activity.heartRateTimeline.size >= 2) {
+                Spacer(GlanceModifier.height(2.dp))
+                ActivityHrChartImage(
+                    timeline = activity.heartRateTimeline,
+                    widthDp = chartWidthDp,
+                    heightDp = hrChartHeightDp,
+                    maxHeartRate = activity.maxHeartRate,
+                )
+            }
         }
     }
 }
