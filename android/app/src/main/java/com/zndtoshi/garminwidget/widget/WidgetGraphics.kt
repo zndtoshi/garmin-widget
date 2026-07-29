@@ -976,7 +976,6 @@ internal fun buildActivityHrChartGeometry(
 }
 
 internal val HR_NEUTRAL_GRAY = 0xFF9AA0A6.toInt()
-internal val HR_NEUTRAL_WHITE = 0xFFF5F7FA.toInt()
 internal val HR_HIGH_RED = 0xFFF44336.toInt()
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
@@ -1005,17 +1004,13 @@ internal fun lerpColorArgb(from: Int, to: Int, t: Float): Int {
 }
 
 /**
- * Neutral grey-to-white activity line below 90% of max HR. Only samples at
- * 90% or above use the high-intensity red treatment.
+ * Solid neutral grey activity line below 95% of max HR. Only samples at
+ * 95% or above use the high-intensity red treatment.
  */
 internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int {
     val ceiling = maxHr.coerceAtLeast(1)
     val ratio = heartRate.toFloat() / ceiling.toFloat()
-    return when {
-        ratio <= 0.60f -> HR_NEUTRAL_GRAY
-        ratio < 0.90f -> lerpColorArgb(HR_NEUTRAL_GRAY, HR_NEUTRAL_WHITE, (ratio - 0.60f) / 0.30f)
-        else -> HR_HIGH_RED
-    }
+    return if (ratio >= 0.95f) HR_HIGH_RED else HR_NEUTRAL_GRAY
 }
 
 /** Target ~1.25dp stroke at render scale 2 → ~2.5px. */

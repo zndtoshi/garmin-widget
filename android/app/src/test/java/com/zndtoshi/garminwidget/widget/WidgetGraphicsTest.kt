@@ -241,31 +241,15 @@ class WidgetGraphicsTest {
     }
 
     @Test
-    fun `activity hr colors stay neutral below 90 percent and red at peaks`() {
+    fun `activity hr line is grey below 95 percent and red at peaks`() {
         val maxHr = 200
         assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(100, maxHr))
         assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(120, maxHr))
-        val neutralMid = heartRateZoneColorArgb(150, maxHr)
-        assertTrue(neutralMid != HR_NEUTRAL_GRAY)
-        assertTrue(neutralMid != HR_NEUTRAL_WHITE)
-        val nearThreshold = heartRateZoneColorArgb(179, maxHr)
-        assertTrue(nearThreshold != HR_HIGH_RED)
-        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(180, maxHr))
+        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(150, maxHr))
+        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(189, maxHr))
+        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(190, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(200, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(220, maxHr))
-
-        // The neutral range progresses smoothly from grey toward white.
-        val justBelow75 = heartRateZoneColorArgb(149, maxHr)
-        val justAbove75 = heartRateZoneColorArgb(151, maxHr)
-        val at75 = heartRateZoneColorArgb(150, maxHr)
-        fun channelDelta(a: Int, b: Int): Int {
-            val dr = kotlin.math.abs(((a shr 16) and 0xff) - ((b shr 16) and 0xff))
-            val dg = kotlin.math.abs(((a shr 8) and 0xff) - ((b shr 8) and 0xff))
-            val db = kotlin.math.abs((a and 0xff) - (b and 0xff))
-            return dr + dg + db
-        }
-        assertTrue(channelDelta(justBelow75, at75) < 40)
-        assertTrue(channelDelta(justAbove75, at75) < 40)
     }
 
     @Test
