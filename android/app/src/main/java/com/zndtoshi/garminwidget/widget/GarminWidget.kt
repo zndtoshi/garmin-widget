@@ -420,8 +420,11 @@ private fun ActivityStrip(
                 .background(ImageProvider(R.drawable.activity_card_background))
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopStart) {
+                Row(
+                    modifier = GlanceModifier.width((chartWidthDp.value * 0.40f).dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Image(
                         provider = ImageProvider(drawActivityIconBitmap(typeKey, LayoutMetrics.dpToRenderPx(18f))),
                         contentDescription = activityIconContentDescription(activity.typeKey),
@@ -433,8 +436,9 @@ private fun ActivityStrip(
                         style = TextStyle(color = ColorProvider(Color.White), fontSize = 10.sp, fontWeight = FontWeight.Bold),
                         maxLines = 1,
                     )
-                    if (activity.maxHeartRate != null) {
-                        Spacer(GlanceModifier.width(6.dp))
+                }
+                if (activity.maxHeartRate != null) {
+                    Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                         Text(
                             text = "Max HR ${formatHr(activity.maxHeartRate)}",
                             style = TextStyle(

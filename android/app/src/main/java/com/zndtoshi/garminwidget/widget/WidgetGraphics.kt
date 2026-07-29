@@ -478,7 +478,7 @@ internal fun drawHrvGraphBitmap(
         )
     }
 
-    val markerSize = (geometry.heightPx * 0.10f).coerceIn(5f, 9f)
+    val markerSize = (geometry.heightPx * 0.16f).coerceIn(9f, 16f)
     for (slot in geometry.slots) {
         val y = slot.y
         if (y == null) {
@@ -1067,13 +1067,13 @@ internal fun activityHrDiffusionDepthPx(
     plotHeightPx: Float,
     renderScale: Float = LayoutMetrics.RENDER_SCALE,
 ): Float {
-    val target = 32f * renderScale
+    val target = 46f * renderScale
     return target
-        .coerceIn(24f * renderScale, 38f * renderScale)
-        .coerceAtMost((plotHeightPx * 0.75f).coerceAtLeast(8f))
+        .coerceIn(34f * renderScale, 52f * renderScale)
+        .coerceAtMost((plotHeightPx * 0.90f).coerceAtLeast(8f))
 }
 
-internal fun activityHrDiffusionStartAlpha(): Int = 0x3A
+internal fun activityHrDiffusionStartAlpha(): Int = 0x60
 
 internal fun argbWithAlpha(colorRgb: Int, alpha: Int): Int =
     (alpha.coerceIn(0, 255) shl 24) or (colorRgb and 0x00FFFFFF)

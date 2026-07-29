@@ -469,9 +469,9 @@ class WidgetGraphicsTest {
     fun `activity hr diffusion is zone colored short and fades to transparent`() {
         val plotHeight = 80f
         val depth = activityHrDiffusionDepthPx(plotHeight)
-        assertTrue("depth $depth", depth in (24f * LayoutMetrics.RENDER_SCALE)..(38f * LayoutMetrics.RENDER_SCALE + 0.01f))
+        assertTrue("depth $depth", depth in (34f * LayoutMetrics.RENDER_SCALE)..(52f * LayoutMetrics.RENDER_SCALE + 0.01f))
         assertTrue(depth < plotHeight)
-        assertEquals(0x3A, activityHrDiffusionStartAlpha())
+        assertEquals(0x60, activityHrDiffusionStartAlpha())
 
         val midLineY = 20f
         val bottom = 100f

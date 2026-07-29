@@ -238,17 +238,17 @@ internal fun sleepRingContentPresentation(): SleepRingContentPresentation =
 
 /** Sleep score inside the ring: larger at the current ~438dp allocation, safe when narrower. */
 internal fun sleepScoreFontSp(widgetWidthDp: Float): Float = when {
-    widgetWidthDp >= 400f -> 18f
-    widgetWidthDp >= 340f -> 16f
-    widgetWidthDp >= 280f -> 14f
-    else -> 13f
+    widgetWidthDp >= 400f -> 22f
+    widgetWidthDp >= 340f -> 19f
+    widgetWidthDp >= 280f -> 16f
+    else -> 14f
 }
 
 /** Muted duration under the score inside the ring. */
 internal fun sleepDurationFontSp(widgetWidthDp: Float): Float = when {
-    widgetWidthDp >= 400f -> 8f
-    widgetWidthDp >= 300f -> 7.5f
-    else -> 7f
+    widgetWidthDp >= 400f -> 10f
+    widgetWidthDp >= 300f -> 9f
+    else -> 8f
 }
 
 internal fun hasAmbiguousMetricAbbreviation(labels: Collection<String>): Boolean =
