@@ -79,4 +79,5 @@ Do **not** use `requirements.txt`.
 - [docs/architecture.md](docs/architecture.md)
 - [docs/implementation-plan.md](docs/implementation-plan.md)
 - [docs/render-deployment.md](docs/render-deployment.md)
+- [docs/render-frankfurt-migration.md](docs/render-frankfurt-migration.md)
 - [backend/README.md](backend/README.md)

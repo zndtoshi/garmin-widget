@@ -1,0 +1,34 @@
+# Temporary migration Blueprint for moving the live backend from Oregon to Frankfurt.
+# Keep the Oregon service running until this replacement passes all verification steps.
+services:
+  - type: web
+    name: garmin-widget-backend-eu
+    runtime: docker
+    region: frankfurt
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    numInstances: 1
+    disk:
+      name: garmin-widget-data-eu
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: GARMIN_WIDGET_APP_ENV
+        value: production
+      - key: GARMIN_WIDGET_DATA_DIR
+        value: /var/data
+      - key: GARMIN_WIDGET_TIMEZONE
+        value: Europe/Bucharest
+      - key: GARMIN_WIDGET_REFRESH_COOLDOWN_SECONDS
+        value: "60"
+      - key: GARMIN_WIDGET_LOG_LEVEL
+        value: INFO
+      - key: GARMIN_WIDGET_SERVICE_NAME
+        value: garmin-widget-backend
+      - key: GARMIN_WIDGET_WIDGET_BEARER_TOKEN
+        sync: false
+      - key: GARMIN_WIDGET_GARMIN_USERNAME
+        sync: false
+      - key: GARMIN_WIDGET_GARMIN_PASSWORD
+        sync: false
