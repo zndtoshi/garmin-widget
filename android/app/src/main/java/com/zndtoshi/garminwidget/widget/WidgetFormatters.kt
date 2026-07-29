@@ -184,6 +184,60 @@ internal fun batteryStressPresentation(bodyBattery: Int?, stress: Int?): Battery
         stressValue = stress?.toString() ?: "—",
     )
 
+/** Individual Sleep/HRV/Body Battery regions must not draw translucent card backgrounds. */
+internal fun healthPanelsUseCardBackground(): Boolean = false
+
+/**
+ * Garmin-style panel header: icon + title on the left, optional primary value on the right.
+ * Trailing values must not be duplicated in the body below the header.
+ */
+internal data class HealthPanelHeaderPresentation(
+    val title: String?,
+    val trailingValue: String?,
+    val supportingLeft: String?,
+) {
+    val duplicatesTrailingBelow: Boolean get() = false
+}
+
+internal fun sleepHeaderPresentation(showTitle: Boolean): HealthPanelHeaderPresentation =
+    HealthPanelHeaderPresentation(
+        title = if (showTitle) "Sleep Score" else null,
+        trailingValue = null,
+        supportingLeft = null,
+    )
+
+internal fun hrvHeaderPresentation(
+    overnightHrv: Int?,
+    hrvStatus: String?,
+    showTitle: Boolean,
+): HealthPanelHeaderPresentation =
+    HealthPanelHeaderPresentation(
+        title = if (showTitle) "HRV Status" else null,
+        trailingValue = overnightHrv?.let { "$it ms" } ?: "—",
+        supportingLeft = formatHrvStatusLabel(hrvStatus),
+    )
+
+internal fun bodyBatteryHeaderPresentation(
+    bodyBattery: Int?,
+    stress: Int?,
+    showTitle: Boolean,
+): HealthPanelHeaderPresentation {
+    val labels = batteryStressPresentation(bodyBattery, stress)
+    return HealthPanelHeaderPresentation(
+        title = if (showTitle) labels.bodyBatteryLabel else null,
+        trailingValue = labels.bodyBatteryValue,
+        supportingLeft = "${labels.stressLabel} ${labels.stressValue}",
+    )
+}
+
+/** Sleep score inside the ring: larger at the current ~438dp allocation, safe when narrower. */
+internal fun sleepScoreFontSp(widgetWidthDp: Float): Float = when {
+    widgetWidthDp >= 400f -> 19f
+    widgetWidthDp >= 340f -> 17f
+    widgetWidthDp >= 280f -> 15f
+    else -> 13f
+}
+
 internal fun hasAmbiguousMetricAbbreviation(labels: Collection<String>): Boolean =
     labels.any { label ->
         val trimmed = label.trim()

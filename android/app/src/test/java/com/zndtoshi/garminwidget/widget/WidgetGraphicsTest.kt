@@ -235,4 +235,79 @@ class WidgetGraphicsTest {
             ).hasRenderableSeries,
         )
     }
+
+    @Test
+    fun `hr zone colors progress continuously from green to red`() {
+        val maxHr = 200
+        assertEquals(HR_ZONE_GREEN, heartRateZoneColorArgb(140, maxHr)) // 70%
+        assertEquals(HR_ZONE_GREEN, heartRateZoneColorArgb(100, maxHr)) // below 70%
+        val midGreenYellow = heartRateZoneColorArgb(150, maxHr) // 75%
+        assertTrue(midGreenYellow != HR_ZONE_GREEN)
+        assertTrue(midGreenYellow != HR_ZONE_YELLOW)
+        assertEquals(HR_ZONE_YELLOW, heartRateZoneColorArgb(160, maxHr)) // 80%
+        val midYellowOrange = heartRateZoneColorArgb(170, maxHr) // 85%
+        assertTrue(midYellowOrange != HR_ZONE_YELLOW)
+        assertTrue(midYellowOrange != HR_ZONE_ORANGE)
+        assertEquals(HR_ZONE_ORANGE, heartRateZoneColorArgb(180, maxHr)) // 90%
+        val midOrangeRed = heartRateZoneColorArgb(190, maxHr) // 95%
+        assertTrue(midOrangeRed != HR_ZONE_ORANGE)
+        assertTrue(midOrangeRed != HR_ZONE_RED)
+        assertEquals(HR_ZONE_RED, heartRateZoneColorArgb(200, maxHr))
+        assertEquals(HR_ZONE_RED, heartRateZoneColorArgb(220, maxHr))
+
+        // Continuity near thresholds: adjacent samples must not jump across zones abruptly.
+        val justBelow80 = heartRateZoneColorArgb(159, maxHr)
+        val justAbove80 = heartRateZoneColorArgb(161, maxHr)
+        val y80 = heartRateZoneColorArgb(160, maxHr)
+        fun channelDelta(a: Int, b: Int): Int {
+            val dr = kotlin.math.abs(((a shr 16) and 0xff) - ((b shr 16) and 0xff))
+            val dg = kotlin.math.abs(((a shr 8) and 0xff) - ((b shr 8) and 0xff))
+            val db = kotlin.math.abs((a and 0xff) - (b and 0xff))
+            return dr + dg + db
+        }
+        assertTrue(channelDelta(justBelow80, y80) < 80)
+        assertTrue(channelDelta(justAbove80, y80) < 80)
+    }
+
+    @Test
+    fun `hr ceiling falls back to timeline max when activity max missing`() {
+        val timeline = listOf(
+            ActivityHeartRatePoint(0, 120),
+            ActivityHeartRatePoint(30, 171),
+            ActivityHeartRatePoint(60, 140),
+        )
+        assertEquals(193, resolveActivityHrCeiling(193, timeline))
+        assertEquals(171, resolveActivityHrCeiling(null, timeline))
+        assertEquals(171, resolveActivityHrCeiling(0, timeline))
+        assertEquals(180, resolveActivityHrCeiling(null, emptyList()))
+    }
+
+    @Test
+    fun `activity hr stroke and marker stay thin`() {
+        val stroke = activityHrStrokeWidthPx(120)
+        val marker = activityHrMarkerRadiusPx(120)
+        assertTrue("stroke $stroke", stroke in 2f..3f)
+        assertTrue("marker $marker", marker in 2f..3.2f)
+        assertTrue(stroke <= 3f)
+        assertTrue(marker < stroke * 1.6f)
+    }
+
+    @Test
+    fun `hrv geometry keeps y labels inside plot vertical bounds`() {
+        val geo = buildHrvGraphGeometry(
+            widthPx = 160,
+            heightPx = 56,
+            points = listOf(
+                HrvTrendPoint(LocalDate.parse("2026-07-22"), 40, 42, "BALANCED"),
+                HrvTrendPoint(LocalDate.parse("2026-07-23"), 44, 43, "BALANCED"),
+            ),
+            maxPoints = 7,
+            showMidLabel = true,
+        )
+        assertTrue(geo.yAtMax >= geo.plotTop - 0.01f)
+        assertTrue(geo.yAtMin <= geo.plotBottom + 0.01f)
+        assertTrue(geo.yAtMax < geo.yAtMin)
+        assertTrue(geo.showMidLabel)
+        assertTrue(geo.plotTop >= 6f)
+    }
 }

@@ -60,6 +60,15 @@ internal data class AdaptiveLayoutSpec(
 
     val hasSleepLegend: Boolean get() = false
 
+    val usesHealthCardBackground: Boolean get() = healthPanelsUseCardBackground()
+
+    /** Header + status + graph must fit inside the health row for readable Y labels. */
+    val hrvInternalUsedHeightDp: Int
+        get() = LayoutMetrics.HRV_HEADER_DP + LayoutMetrics.HRV_STATUS_DP + hrvGraphHeightDp.roundToInt()
+
+    val hrvInternalBudgetFits: Boolean
+        get() = hrvInternalUsedHeightDp <= healthRowDp
+
     val estimatedUsedHeightDp: Int
         get() = LayoutMetrics.OUTER_PADDING_DP * 2 +
             LayoutMetrics.HEADER_DP +
@@ -82,9 +91,13 @@ internal object LayoutMetrics {
     const val MIN_HEALTH_ROW_DP = 56
     const val MIN_ACTIVITY_ROW_DP = 64
     const val MIN_ACTIVITY_HR_CHART_DP = 24
-    const val MIN_HRV_GRAPH_HEIGHT_DP = 28
+    const val MIN_HRV_GRAPH_HEIGHT_DP = 24
     const val MIN_PANEL_CHART_HEIGHT_DP = 22
     const val MIN_SLEEP_RING_DP = 36
+    const val HRV_HEADER_DP = 14
+    const val HRV_STATUS_DP = 12
+    /** Shrink HRV chart vs prior tall allocation (~10–14dp) for breathing room / label visibility. */
+    const val HRV_GRAPH_HEIGHT_REDUCTION_DP = 12
 
     /** Default bitmap render scale for Glance ImageProvider bitmaps. */
     const val RENDER_SCALE = 2f
@@ -142,8 +155,9 @@ internal object LayoutMetrics {
         val sleepRing = min(panelWidth - 28f, (health - 35).toFloat())
             .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 110f)
         val graphWidth = (panelWidth - 22f).coerceIn(56f, 120f)
-        val hrvHeight = (health - 50).toFloat()
-            .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 90f)
+        // Reserve header+status (~26dp) and shrink chart ~12dp vs prior formula for label room.
+        val hrvHeight = (health - 50 - HRV_GRAPH_HEIGHT_REDUCTION_DP).toFloat()
+            .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 78f)
         val panelChartHeight = (health - 49).toFloat()
             .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 90f)
 

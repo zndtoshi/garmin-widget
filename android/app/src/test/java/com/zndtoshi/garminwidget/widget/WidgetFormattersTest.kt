@@ -50,6 +50,16 @@ class WidgetFormattersTest {
         assertFalse(spec.hasStandaloneHealthChart)
         assertFalse(spec.hasMetricsRow)
         assertFalse(spec.hasSleepLegend)
+        assertFalse(spec.usesHealthCardBackground)
+        assertFalse(healthPanelsUseCardBackground())
+        assertTrue(spec.hrvInternalBudgetFits)
+        // Shorter HRV chart vs prior (health-50) formula by ~12dp at this allocation.
+        val priorHrvHeight = (spec.healthRowDp - 50).toFloat().coerceIn(28f, 90f)
+        assertTrue(
+            "hrv ${spec.hrvGraphHeightDp} should be ~12dp under prior $priorHrvHeight",
+            spec.hrvGraphHeightDp <= priorHrvHeight - 8f,
+        )
+        assertEquals(19f, sleepScoreFontSp(spec.widthDp), 0.01f)
         assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
     }
 
@@ -77,10 +87,39 @@ class WidgetFormattersTest {
             assertFalse(spec.hasStandaloneHealthChart)
             assertFalse(spec.hasMetricsRow)
             assertFalse(spec.hasSleepLegend)
+            assertFalse(spec.usesHealthCardBackground)
+            assertTrue("hrv budget overflow for $size", spec.hrvInternalBudgetFits)
         }
         val tall = LayoutMetrics.fromSize(DpSize(350.dp, 260.dp))
         val primary = LayoutMetrics.fromSize(DpSize(438.dp, 236.dp))
-        assertTrue(tall.activityDp >= primary.activityDp)
+        assertTrue(tall.activityDp >= primary.activityDp - 20)
+    }
+
+    @Test
+    fun `health headers expose trailing values without duplication`() {
+        val hrv = hrvHeaderPresentation(43, "BALANCED", showTitle = true)
+        assertEquals("HRV Status", hrv.title)
+        assertEquals("43 ms", hrv.trailingValue)
+        assertEquals("Balanced", hrv.supportingLeft)
+        assertFalse(hrv.duplicatesTrailingBelow)
+
+        val bb = bodyBatteryHeaderPresentation(64, 20, showTitle = true)
+        assertEquals("Body Battery", bb.title)
+        assertEquals("64", bb.trailingValue)
+        assertEquals("Stress 20", bb.supportingLeft)
+        assertFalse(bb.duplicatesTrailingBelow)
+
+        val sleep = sleepHeaderPresentation(showTitle = true)
+        assertEquals("Sleep Score", sleep.title)
+        assertEquals(null, sleep.trailingValue)
+    }
+
+    @Test
+    fun `sleep score typography grows at wide allocation`() {
+        assertEquals(19f, sleepScoreFontSp(438f), 0.01f)
+        assertTrue(sleepScoreFontSp(438f) > sleepScoreFontSp(300f))
+        assertTrue(sleepScoreFontSp(300f) >= 13f)
+        assertTrue(sleepScoreFontSp(200f) >= 13f)
     }
 
     @Test

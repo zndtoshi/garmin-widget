@@ -3,9 +3,11 @@ package com.zndtoshi.garminwidget.widget
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
@@ -15,6 +17,8 @@ import com.zndtoshi.garminwidget.data.TimelinePoint
 import java.time.Instant
 import java.util.Locale
 import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 internal data class RingSegment(
     val startDegrees: Float,
@@ -180,11 +184,13 @@ internal fun buildHrvGraphGeometry(
 ): HrvGraphGeometry {
     val w = max(1, widthPx)
     val h = max(1, heightPx)
-    val labelGutter = if (w >= 90) 22f else 16f
+    val labelGutter = if (w >= 90) 24f else 18f
+    val labelSize = max(9f, h * 0.15f)
+    // Keep top/bottom padding so 80 / mid / 22 stay fully inside the bitmap.
     val plotLeft = labelGutter
-    val plotTop = 4f
+    val plotTop = (labelSize * 0.85f).coerceAtLeast(8f)
     val plotRight = (w - 4).toFloat().coerceAtLeast(plotLeft + 1f)
-    val plotBottom = (h - 4).toFloat().coerceAtLeast(plotTop + 1f)
+    val plotBottom = (h - labelSize * 0.35f - 2f).coerceAtLeast(plotTop + 1f)
     val selected = pickRecentHrvPoints(points, maxPoints)
     val slots = selected.mapIndexed { index, point ->
         val xFraction = if (selected.size <= 1) 0.5f else index.toFloat() / (selected.size - 1).toFloat()
@@ -204,7 +210,7 @@ internal fun buildHrvGraphGeometry(
         yAtMin = yForHrvMs(HRV_SCALE_MIN_MS, plotTop, plotBottom),
         yAtMax = yForHrvMs(HRV_SCALE_MAX_MS, plotTop, plotBottom),
         yAtMid = yForHrvMs((HRV_SCALE_MIN_MS + HRV_SCALE_MAX_MS) / 2, plotTop, plotBottom),
-        showMidLabel = showMidLabel && h >= 48,
+        showMidLabel = showMidLabel && (plotBottom - plotTop) >= 28f,
         slots = slots,
     )
 }
@@ -226,7 +232,7 @@ internal fun drawHrvGraphBitmap(
     }
     val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF9FB5BB.toInt()
-        textSize = max(10f, geometry.heightPx * 0.16f)
+        textSize = max(9f, geometry.heightPx * 0.15f)
     }
 
     fun drawGrid(y: Float) {
@@ -236,11 +242,12 @@ internal fun drawHrvGraphBitmap(
     if (geometry.showMidLabel) drawGrid(geometry.yAtMid)
     drawGrid(geometry.yAtMin)
 
+    // Anchor labels so the glyph stays inside the bitmap (no top/bottom clipping).
     canvas.drawText("80", 2f, geometry.yAtMax + labelPaint.textSize * 0.35f, labelPaint)
     if (geometry.showMidLabel) {
         canvas.drawText("51", 2f, geometry.yAtMid + labelPaint.textSize * 0.35f, labelPaint)
     }
-    canvas.drawText("22", 2f, geometry.yAtMin + labelPaint.textSize * 0.35f, labelPaint)
+    canvas.drawText("22", 2f, min(geometry.heightPx - 1f, geometry.yAtMin + labelPaint.textSize * 0.15f), labelPaint)
 
     val plotted = geometry.slots.filter { it.y != null }
     if (plotted.size >= 2) {
@@ -762,13 +769,72 @@ internal fun buildActivityHrChartGeometry(
     return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
+internal val HR_ZONE_GREEN = 0xFF4CAF50.toInt()
+internal val HR_ZONE_YELLOW = 0xFFFFEB3B.toInt()
+internal val HR_ZONE_ORANGE = 0xFFFF9800.toInt()
+internal val HR_ZONE_RED = 0xFFF44336.toInt()
+
+/** Valid activity max HR, else max of timeline samples, else a safe default. */
+internal fun resolveActivityHrCeiling(
+    maxHeartRate: Int?,
+    timeline: List<ActivityHeartRatePoint>,
+): Int {
+    if (maxHeartRate != null && maxHeartRate in 20..250) return maxHeartRate
+    val fromTimeline = timeline
+        .map { it.heartRate }
+        .filter { it in 20..250 }
+        .maxOrNull()
+    return fromTimeline ?: 180
+}
+
+internal fun lerpColorArgb(from: Int, to: Int, t: Float): Int {
+    val u = t.coerceIn(0f, 1f)
+    val a = ((from ushr 24) and 0xff) + ((((to ushr 24) and 0xff) - ((from ushr 24) and 0xff)) * u).roundToInt()
+    val r = ((from ushr 16) and 0xff) + ((((to ushr 16) and 0xff) - ((from ushr 16) and 0xff)) * u).roundToInt()
+    val g = ((from ushr 8) and 0xff) + ((((to ushr 8) and 0xff) - ((from ushr 8) and 0xff)) * u).roundToInt()
+    val b = (from and 0xff) + (((to and 0xff) - (from and 0xff)) * u).roundToInt()
+    return (a.coerceIn(0, 255) shl 24) or
+        (r.coerceIn(0, 255) shl 16) or
+        (g.coerceIn(0, 255) shl 8) or
+        b.coerceIn(0, 255)
+}
+
+/**
+ * Continuous Garmin-inspired HR color from ratio of sample to activity max:
+ * ≤70% green, 70–80% green→yellow, 80–90% yellow→orange, 90–100%+ orange→red.
+ */
+internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int {
+    val ceiling = maxHr.coerceAtLeast(1)
+    val ratio = heartRate.toFloat() / ceiling.toFloat()
+    return when {
+        ratio <= 0.70f -> HR_ZONE_GREEN
+        ratio <= 0.80f -> lerpColorArgb(HR_ZONE_GREEN, HR_ZONE_YELLOW, (ratio - 0.70f) / 0.10f)
+        ratio <= 0.90f -> lerpColorArgb(HR_ZONE_YELLOW, HR_ZONE_ORANGE, (ratio - 0.80f) / 0.10f)
+        ratio <= 1.00f -> lerpColorArgb(HR_ZONE_ORANGE, HR_ZONE_RED, (ratio - 0.90f) / 0.10f)
+        else -> HR_ZONE_RED
+    }
+}
+
+/** Target ~1.25dp stroke at render scale 2 → ~2.5px. */
+internal fun activityHrStrokeWidthPx(heightPx: Int, renderScale: Float = LayoutMetrics.RENDER_SCALE): Float {
+    val fromDp = 1.25f * renderScale
+    return fromDp.coerceIn(2f, 3f).coerceAtMost(max(2f, heightPx * 0.02f))
+}
+
+internal fun activityHrMarkerRadiusPx(heightPx: Int, renderScale: Float = LayoutMetrics.RENDER_SCALE): Float {
+    val fromDp = 1.1f * renderScale
+    return fromDp.coerceIn(2f, 3.2f).coerceAtMost(max(2f, heightPx * 0.04f))
+}
+
 internal fun drawActivityHrChartBitmap(
     widthPx: Int,
     heightPx: Int,
     timeline: List<ActivityHeartRatePoint>,
+    maxHeartRate: Int? = null,
 ): Bitmap? {
     val geo = buildActivityHrChartGeometry(widthPx, heightPx, timeline)
     if (!geo.hasRenderableSeries) return null
+    val ceiling = resolveActivityHrCeiling(maxHeartRate, timeline)
     val bmp = Bitmap.createBitmap(geo.widthPx, geo.heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -794,39 +860,47 @@ internal fun drawActivityHrChartBitmap(
         labelPaint.textAlign = Paint.Align.CENTER
         canvas.drawText("${elapsed / 60}m", x, geo.heightPx - 2f, labelPaint)
     }
-    val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = WidgetPalette.activityHr
-        style = Paint.Style.STROKE
-        strokeWidth = max(1.5f, geo.heightPx * 0.025f)
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
-    }
-    val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = WidgetPalette.activityHrFill
-        style = Paint.Style.FILL
-    }
-    val path = Path()
+
     val fill = Path()
     geo.points.forEachIndexed { index, point ->
         if (index == 0) {
-            path.moveTo(point.x, point.y)
             fill.moveTo(point.x, geo.bottom)
             fill.lineTo(point.x, point.y)
         } else {
-            path.lineTo(point.x, point.y)
             fill.lineTo(point.x, point.y)
         }
     }
     fill.lineTo(geo.points.last().x, geo.bottom)
     fill.close()
-    canvas.drawPath(fill, fillPaint)
-    canvas.drawPath(path, linePaint)
+    canvas.drawPath(
+        fill,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x22000000
+            style = Paint.Style.FILL
+        },
+    )
+
+    val stroke = activityHrStrokeWidthPx(geo.heightPx)
+    for (i in 0 until geo.points.lastIndex) {
+        val a = geo.points[i]
+        val b = geo.points[i + 1]
+        val c0 = heartRateZoneColorArgb(a.value, ceiling)
+        val c1 = heartRateZoneColorArgb(b.value, ceiling)
+        val segPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+            shader = LinearGradient(a.x, a.y, b.x, b.y, c0, c1, Shader.TileMode.CLAMP)
+        }
+        canvas.drawLine(a.x, a.y, b.x, b.y, segPaint)
+    }
     geo.maxPoint?.let { peak ->
         val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = WidgetPalette.activityHrMax
+            color = heartRateZoneColorArgb(peak.value, ceiling)
             style = Paint.Style.FILL
         }
-        canvas.drawCircle(peak.x, peak.y, max(2.5f, geo.heightPx * 0.055f), marker)
+        canvas.drawCircle(peak.x, peak.y, activityHrMarkerRadiusPx(geo.heightPx), marker)
     }
     return bmp
 }

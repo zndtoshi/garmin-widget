@@ -143,7 +143,6 @@ private fun TwoRowLayout(
     zoneId: ZoneId,
     spec: AdaptiveLayoutSpec,
 ) {
-    val labels = batteryStressPresentation(data.bodyBattery, data.stress)
     val dayRange = timelineDayRange(data.date, zoneId)
     Row(
         modifier = GlanceModifier.fillMaxWidth().height(spec.healthRowDp.dp),
@@ -156,7 +155,7 @@ private fun TwoRowLayout(
             HrvPanel(data, spec)
         }
         EqualPanel(widthDp = spec.panelWidthDp.dp, heightDp = spec.healthRowDp.dp) {
-            BodyBatteryPanel(data, bodyBattery, stress, labels, spec, dayRange?.first, dayRange?.second)
+            BodyBatteryPanel(data, bodyBattery, stress, spec, dayRange?.first, dayRange?.second)
         }
     }
     if (spec.afterHealthSpacerDp > 0) {
@@ -173,9 +172,14 @@ private fun TwoRowLayout(
 
 @Composable
 private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
+    val header = sleepHeaderPresentation(spec.showPanelTitles)
     Column(modifier = GlanceModifier.fillMaxWidth()) {
-        PanelTitleRow(HealthPanelIcon.SLEEP, if (spec.showPanelTitles) "Sleep Score" else null)
-        SleepRing(data, ringDp = spec.sleepRingDp.dp)
+        HealthPanelHeader(HealthPanelIcon.SLEEP, header)
+        SleepRing(
+            data = data,
+            ringDp = spec.sleepRingDp.dp,
+            scoreFontSp = sleepScoreFontSp(spec.widthDp),
+        )
         Text(
             text = formatSleepDuration(data.sleepDurationSeconds),
             style = TextStyle(color = ColorProvider(Color(0xFFB0BEC5)), fontSize = 8.sp),
@@ -186,26 +190,23 @@ private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
 
 @Composable
 private fun HrvPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
-    val hrvText = data.overnightHrv?.let { "$it ms" } ?: "—"
+    val header = hrvHeaderPresentation(data.overnightHrv, data.hrvStatus, spec.showPanelTitles)
     Column(modifier = GlanceModifier.fillMaxWidth()) {
-        PanelTitleRow(HealthPanelIcon.HRV, if (spec.showPanelTitles) "HRV Status" else null)
-        Text(
-            text = hrvText,
-            style = TextStyle(color = ColorProvider(Color.White), fontSize = 13.sp, fontWeight = FontWeight.Bold),
-            maxLines = 1,
-        )
-        Text(
-            text = formatHrvStatusLabel(data.hrvStatus),
-            style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
-            maxLines = 1,
-        )
+        HealthPanelHeader(HealthPanelIcon.HRV, header)
+        if (header.supportingLeft != null) {
+            Text(
+                text = header.supportingLeft,
+                style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
+                maxLines = 1,
+            )
+        }
         if (hasRenderableHrvTrend(data.hrvTrend)) {
             HrvGraphImage(
                 points = data.hrvTrend,
                 maxPoints = 7,
                 widthDp = spec.hrvGraphWidthDp.dp,
                 heightDp = spec.hrvGraphHeightDp.dp,
-                showMidLabel = spec.hrvGraphHeightDp >= 32f,
+                showMidLabel = true,
             )
         }
     }
@@ -216,23 +217,20 @@ private fun BodyBatteryPanel(
     data: WidgetResponse,
     bodyBattery: List<TimelinePoint>,
     stress: List<TimelinePoint>,
-    labels: BatteryStressPresentation,
     spec: AdaptiveLayoutSpec,
     rangeStart: Instant?,
     rangeEnd: Instant?,
 ) {
+    val header = bodyBatteryHeaderPresentation(data.bodyBattery, data.stress, spec.showPanelTitles)
     Column(modifier = GlanceModifier.fillMaxWidth()) {
-        PanelTitleRow(HealthPanelIcon.BODY_BATTERY, if (spec.showPanelTitles) labels.bodyBatteryLabel else null)
-        Text(
-            text = labels.bodyBatteryValue,
-            style = TextStyle(color = ColorProvider(Color.White), fontSize = 13.sp, fontWeight = FontWeight.Bold),
-            maxLines = 1,
-        )
-        Text(
-            text = "${labels.stressLabel} ${labels.stressValue}",
-            style = TextStyle(color = ColorProvider(Color(0xFFFFA726)), fontSize = 8.sp),
-            maxLines = 1,
-        )
+        HealthPanelHeader(HealthPanelIcon.BODY_BATTERY, header)
+        if (header.supportingLeft != null) {
+            Text(
+                text = header.supportingLeft,
+                style = TextStyle(color = ColorProvider(Color(0xFFFFA726)), fontSize = 8.sp),
+                maxLines = 1,
+            )
+        }
         CombinedChartImage(
             bodyBattery = bodyBattery,
             stress = stress,
@@ -247,18 +245,35 @@ private fun BodyBatteryPanel(
 }
 
 @Composable
-private fun PanelTitleRow(icon: HealthPanelIcon, title: String?) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun HealthPanelHeader(icon: HealthPanelIcon, header: HealthPanelHeaderPresentation) {
+    Row(
+        modifier = GlanceModifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Image(
             provider = ImageProvider(drawHealthPanelIconBitmap(icon, LayoutMetrics.dpToRenderPx(14f))),
             contentDescription = healthPanelIconContentDescription(icon),
             modifier = GlanceModifier.width(12.dp).height(12.dp),
         )
-        if (title != null) {
+        if (header.title != null) {
             Spacer(GlanceModifier.width(3.dp))
             Text(
-                text = title,
+                text = header.title,
                 style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
+                maxLines = 1,
+                modifier = GlanceModifier.defaultWeight(),
+            )
+        } else {
+            Spacer(modifier = GlanceModifier.defaultWeight())
+        }
+        if (header.trailingValue != null) {
+            Text(
+                text = header.trailingValue,
+                style = TextStyle(
+                    color = ColorProvider(Color.White),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
                 maxLines = 1,
             )
         }
@@ -276,23 +291,19 @@ private fun EqualPanel(
         modifier = GlanceModifier
             .width(widthDp)
             .height(heightDp)
-            .padding(horizontal = 2.dp),
+            .padding(horizontal = 3.dp, vertical = 2.dp),
     ) {
-        Box(
-            contentAlignment = Alignment.TopStart,
-            modifier = GlanceModifier
-                .fillMaxSize()
-                .cornerRadius(10.dp)
-                .background(ColorProvider(Color(0x18FFFFFF)))
-                .padding(horizontal = 5.dp, vertical = 4.dp),
-        ) {
-            content()
-        }
+        content()
     }
 }
 
 @Composable
-private fun SleepRing(data: WidgetResponse, modifier: GlanceModifier = GlanceModifier, ringDp: Dp = 52.dp) {
+private fun SleepRing(
+    data: WidgetResponse,
+    modifier: GlanceModifier = GlanceModifier,
+    ringDp: Dp = 52.dp,
+    scoreFontSp: Float = 13f,
+) {
     val px = LayoutMetrics.dpToRenderPx(ringDp.value)
     Box(contentAlignment = Alignment.Center, modifier = modifier.width(ringDp).height(ringDp)) {
         Image(
@@ -302,7 +313,11 @@ private fun SleepRing(data: WidgetResponse, modifier: GlanceModifier = GlanceMod
         )
         Text(
             text = data.sleepScore?.toString() ?: "—",
-            style = TextStyle(color = ColorProvider(Color.White), fontSize = 13.sp, fontWeight = FontWeight.Bold),
+            style = TextStyle(
+                color = ColorProvider(Color.White),
+                fontSize = scoreFontSp.sp,
+                fontWeight = FontWeight.Bold,
+            ),
         )
     }
 }
@@ -347,10 +362,11 @@ private fun ActivityHrChartImage(
     timeline: List<ActivityHeartRatePoint>,
     widthDp: Dp,
     heightDp: Dp,
+    maxHeartRate: Int?,
 ) {
     if (heightDp.value < 8f) return
     val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
-    val bitmap = drawActivityHrChartBitmap(wPx, hPx, timeline) ?: return
+    val bitmap = drawActivityHrChartBitmap(wPx, hPx, timeline, maxHeartRate) ?: return
     Image(
         provider = ImageProvider(bitmap),
         contentDescription = "Activity heart rate chart",
@@ -406,7 +422,12 @@ private fun ActivityStrip(
         }
         if (showHrChart && activity.heartRateTimeline.size >= 2) {
             Spacer(GlanceModifier.height(2.dp))
-            ActivityHrChartImage(activity.heartRateTimeline, chartWidthDp, hrChartHeightDp)
+            ActivityHrChartImage(
+                timeline = activity.heartRateTimeline,
+                widthDp = chartWidthDp,
+                heightDp = hrChartHeightDp,
+                maxHeartRate = activity.maxHeartRate,
+            )
         }
     }
 }
