@@ -295,7 +295,6 @@ private fun EqualPanel(
             contentAlignment = Alignment.TopStart,
             modifier = GlanceModifier
                 .fillMaxSize()
-                .cornerRadius(10.dp)
                 .background(ColorProvider(Color(HEALTH_PANEL_CARD_COLOR))),
         ) {
             content()

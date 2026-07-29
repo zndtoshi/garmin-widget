@@ -152,7 +152,8 @@ internal object LayoutMetrics {
             .coerceIn(16, 110)
             .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
 
-        val sleepRing = min(panelWidth - 28f, (health - 35).toFloat())
+        // Fill the square-cornered panel while reserving its title and duration rows.
+        val sleepRing = min(panelWidth - 12f, (health - 27).toFloat())
             .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 110f)
         val graphWidth = (panelWidth - 22f).coerceIn(56f, 120f)
         // Reserve header+status (~26dp) and shrink chart ~12dp vs prior formula for label room.
