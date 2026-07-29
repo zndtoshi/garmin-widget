@@ -16,6 +16,7 @@ import com.zndtoshi.garminwidget.data.SleepStages
 import com.zndtoshi.garminwidget.data.TimelinePoint
 import java.time.Instant
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -43,14 +44,79 @@ internal data class ChartGeometry(
     val stressPoints: List<ChartPoint>,
 )
 
+/** Draw order for the combined Body Battery / stress chart (grid under bars under curve). */
+internal enum class CombinedChartLayer {
+    GRID,
+    STRESS_BARS,
+    BATTERY_CURVE,
+    BATTERY_MARKER,
+}
+
+internal fun combinedChartDrawOrder(): List<CombinedChartLayer> = listOf(
+    CombinedChartLayer.GRID,
+    CombinedChartLayer.STRESS_BARS,
+    CombinedChartLayer.BATTERY_CURVE,
+    CombinedChartLayer.BATTERY_MARKER,
+)
+
+/** Garmin-inspired stress bar bands: rest/low vs active stress. */
+internal enum class StressBarKind {
+    REST,
+    STRESS,
+}
+
+internal fun classifyStressBar(value: Int): StressBarKind? = when (value) {
+    in 0..25 -> StressBarKind.REST
+    in 26..100 -> StressBarKind.STRESS
+    else -> null
+}
+
+internal fun stressBarColorArgb(value: Int): Int = when (classifyStressBar(value)) {
+    StressBarKind.REST -> WidgetPalette.stressRest
+    StressBarKind.STRESS -> WidgetPalette.stress
+    null -> WidgetPalette.stress
+}
+
+internal fun countStressBarColors(values: Collection<Int>): Pair<Int, Int> {
+    var rest = 0
+    var stress = 0
+    for (value in values) {
+        when (classifyStressBar(value)) {
+            StressBarKind.REST -> rest++
+            StressBarKind.STRESS -> stress++
+            null -> Unit
+        }
+    }
+    return rest to stress
+}
+
+/**
+ * Half-width for a stress bar so clustered samples stay legible instead of merging
+ * into one solid block.
+ */
+internal fun stressBarHalfWidthPx(points: List<ChartPoint>, index: Int): Float {
+    if (points.isEmpty()) return 1f
+    if (points.size == 1) return 3f
+    val x = points[index].x
+    val leftGap = if (index > 0) x - points[index - 1].x else Float.POSITIVE_INFINITY
+    val rightGap = if (index < points.lastIndex) points[index + 1].x - x else Float.POSITIVE_INFINITY
+    val halfGap = min(leftGap, rightGap) * 0.4f
+    return halfGap.coerceIn(0.55f, 1.35f)
+}
+
 internal object WidgetPalette {
     const val deep = 0xFF4A3FAE.toInt()
     const val light = 0xFF6FA8FF.toInt()
     const val rem = 0xFFB158D8.toInt()
     const val awake = 0xFFFFB74D.toInt()
     const val neutral = 0xFF607D8B.toInt()
-    const val battery = 0xFF4DD0E1.toInt()
-    const val batteryFill = 0x334DD0E1
+    /** Garmin Connect–style Body Battery stroke (white/off-white). */
+    const val battery = 0xFFF5F7FA.toInt()
+    /** Very subtle fill under the Body Battery curve (not a strong cyan area). */
+    const val batteryFill = 0x14FFFFFF
+    /** Rest / low stress (0–25). */
+    const val stressRest = 0xFF42A5F5.toInt()
+    /** Elevated stress (26–100). */
     const val stress = 0xFFFFA726.toInt()
     const val hrvGreen = 0xFF4CAF50.toInt()
     const val hrvOrange = 0xFFFF9800.toInt()
@@ -59,6 +125,151 @@ internal object WidgetPalette {
     const val activityHr = 0xFFE57373.toInt()
     const val activityHrFill = 0x44E57373
     const val activityHrMax = 0xFFFF8A80.toInt()
+}
+
+/**
+ * Shape-preserving monotone cubic Hermite (Fritsch–Carlson) slopes for strictly
+ * increasing abscissae. Equal neighboring values yield zero slopes (flat plateaus).
+ */
+internal fun fritschCarlsonSlopes(xs: FloatArray, ys: FloatArray): FloatArray {
+    val n = xs.size
+    require(n == ys.size)
+    val m = FloatArray(n)
+    if (n == 0) return m
+    if (n == 1) return m
+
+    val h = FloatArray(n - 1)
+    val delta = FloatArray(n - 1)
+    for (i in 0 until n - 1) {
+        h[i] = xs[i + 1] - xs[i]
+        delta[i] = if (h[i] > 0f) (ys[i + 1] - ys[i]) / h[i] else 0f
+    }
+
+    m[0] = delta[0]
+    m[n - 1] = delta[n - 2]
+    for (i in 1 until n - 1) {
+        if (delta[i - 1] == 0f || delta[i] == 0f || delta[i - 1] * delta[i] < 0f) {
+            m[i] = 0f
+        } else {
+            val w1 = 2f * h[i] + h[i - 1]
+            val w2 = h[i] + 2f * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / delta[i - 1] + w2 / delta[i])
+        }
+    }
+    return m
+}
+
+internal fun hermiteCubicY(
+    x: Float,
+    x0: Float,
+    x1: Float,
+    y0: Float,
+    y1: Float,
+    m0: Float,
+    m1: Float,
+): Float {
+    val h = x1 - x0
+    if (h <= 0f || !h.isFinite()) return y0
+    val t = ((x - x0) / h).coerceIn(0f, 1f)
+    val t2 = t * t
+    val t3 = t2 * t
+    val h00 = 2f * t3 - 3f * t2 + 1f
+    val h10 = t3 - 2f * t2 + t
+    val h01 = -2f * t3 + 3f * t2
+    val h11 = t3 - t2
+    val y = h00 * y0 + h10 * h * m0 + h01 * y1 + h11 * h * m1
+    return if (y.isFinite()) y else y0
+}
+
+/**
+ * Collapse duplicate X positions (keep last) so cubic segments have positive width.
+ */
+internal fun dedupeChartPointsByX(points: List<ChartPoint>): List<ChartPoint> {
+    if (points.size <= 1) return points
+    val out = ArrayList<ChartPoint>(points.size)
+    for (p in points.sortedBy { it.x }) {
+        if (out.isNotEmpty() && abs(out.last().x - p.x) < 1e-3f) {
+            out[out.lastIndex] = p
+        } else {
+            out.add(p)
+        }
+    }
+    return out
+}
+
+/**
+ * Render-only dense samples along a monotone cubic through the measured Body Battery
+ * points. Does not invent API/persisted measurements — geometry only for drawing.
+ */
+internal fun buildSmoothBatteryRenderPoints(
+    measured: List<ChartPoint>,
+    samplesPerSegmentHint: Int = 12,
+): List<ChartPoint> {
+    val pts = dedupeChartPointsByX(measured)
+    if (pts.isEmpty()) return emptyList()
+    if (pts.size == 1) return pts
+
+    val xs = FloatArray(pts.size) { pts[it].x }
+    val ys = FloatArray(pts.size) { pts[it].y }
+    val values = FloatArray(pts.size) { pts[it].value.toFloat() }
+    val ySlopes = fritschCarlsonSlopes(xs, ys)
+    val vSlopes = fritschCarlsonSlopes(xs, values)
+
+    val out = ArrayList<ChartPoint>(pts.size * (samplesPerSegmentHint + 1))
+    out.add(pts.first())
+    for (i in 0 until pts.size - 1) {
+        val h = xs[i + 1] - xs[i]
+        if (h <= 0f) continue
+        val base = samplesPerSegmentHint.coerceIn(4, 24)
+        val byWidth = (h / 4f).roundToInt()
+        val samples = max(base, byWidth).coerceIn(4, 32)
+        val lo = min(values[i], values[i + 1])
+        val hi = max(values[i], values[i + 1])
+        for (s in 1..samples) {
+            val t = s.toFloat() / samples.toFloat()
+            val x = xs[i] + t * h
+            val y = hermiteCubicY(x, xs[i], xs[i + 1], ys[i], ys[i + 1], ySlopes[i], ySlopes[i + 1])
+            val value = if (s == samples) {
+                pts[i + 1].value
+            } else {
+                hermiteCubicY(x, xs[i], xs[i + 1], values[i], values[i + 1], vSlopes[i], vSlopes[i + 1])
+                    .coerceIn(lo, hi)
+                    .roundToInt()
+            }
+            out.add(ChartPoint(x = x, y = y, value = value))
+        }
+    }
+    return out
+}
+
+/**
+ * Evaluate monotone cubic in value space for shape-preservation tests.
+ * Returns denser (x, value) samples; endpoints match the inputs exactly.
+ */
+internal fun sampleMonotoneCubicValues(
+    xs: FloatArray,
+    values: FloatArray,
+    samplesPerSegment: Int = 12,
+): List<Pair<Float, Float>> {
+    require(xs.size == values.size)
+    if (xs.isEmpty()) return emptyList()
+    if (xs.size == 1) return listOf(xs[0] to values[0])
+
+    val slopes = fritschCarlsonSlopes(xs, values)
+    val out = ArrayList<Pair<Float, Float>>()
+    out.add(xs[0] to values[0])
+    for (i in 0 until xs.size - 1) {
+        val h = xs[i + 1] - xs[i]
+        if (h <= 0f) continue
+        val samples = samplesPerSegment.coerceAtLeast(1)
+        for (s in 1..samples) {
+            val t = s.toFloat() / samples.toFloat()
+            val x = xs[i] + t * h
+            val y = hermiteCubicY(x, xs[i], xs[i + 1], values[i], values[i + 1], slopes[i], slopes[i + 1])
+            out.add(x to y)
+        }
+    }
+    return out
 }
 
 internal fun buildSleepRingSegments(stages: SleepStages?): List<RingSegment> {
@@ -309,6 +520,12 @@ private fun drawHrvMarkerOnCanvas(canvas: Canvas, kind: HrvMarkerKind, cx: Float
     }
 }
 
+internal fun batteryCurveStrokeWidthPx(plotHeightPx: Int): Float =
+    (plotHeightPx * 0.035f).coerceIn(1.25f, 2f)
+
+internal fun batteryEndpointMarkerRadiusPx(strokeWidthPx: Float): Float =
+    (strokeWidthPx * 1.35f).coerceIn(1.75f, 2.75f)
+
 internal fun drawCombinedChartBitmap(
     widthPx: Int,
     heightPx: Int,
@@ -322,6 +539,7 @@ internal fun drawCombinedChartBitmap(
     val canvas = Canvas(bmp)
     if (geometry.batteryPoints.isEmpty() && geometry.stressPoints.isEmpty()) return bmp
 
+    // Layer order: grid → stress bars → Body Battery curve → endpoint marker.
     val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.parseColor("#45606B75")
         style = Paint.Style.STROKE
@@ -338,14 +556,32 @@ internal fun drawCombinedChartBitmap(
         canvas.drawText(label, x, geometry.heightPx - 2f, labelPaint)
     }
 
+    if (geometry.stressPoints.isNotEmpty()) {
+        val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        for ((index, point) in geometry.stressPoints.withIndex()) {
+            barPaint.color = stressBarColorArgb(point.value)
+            val barHalf = stressBarHalfWidthPx(geometry.stressPoints, index)
+            canvas.drawRect(point.x - barHalf, point.y, point.x + barHalf, geometry.bottom, barPaint)
+        }
+    }
+
     if (geometry.batteryPoints.isNotEmpty()) {
-        val batteryPoints = geometry.batteryPoints
-        if (batteryPoints.size == 1) {
-            val p = batteryPoints.first()
+        val measured = geometry.batteryPoints
+        val renderPoints = buildSmoothBatteryRenderPoints(measured)
+        val stroke = batteryCurveStrokeWidthPx((geometry.bottom - geometry.top).roundToInt())
+        val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = WidgetPalette.battery
+            style = Paint.Style.STROKE
+            strokeWidth = stroke
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        if (renderPoints.size == 1) {
+            val p = renderPoints.first()
             canvas.drawCircle(
                 p.x,
                 p.y,
-                4f,
+                batteryEndpointMarkerRadiusPx(stroke),
                 Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = WidgetPalette.battery
                     style = Paint.Style.FILL
@@ -353,31 +589,26 @@ internal fun drawCombinedChartBitmap(
             )
         } else {
             val path = Path()
-            batteryPoints.forEachIndexed { i, p ->
+            renderPoints.forEachIndexed { i, p ->
                 if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
             }
             val fill = Path(path).apply {
-                lineTo(batteryPoints.last().x, geometry.bottom)
-                lineTo(batteryPoints.first().x, geometry.bottom)
+                lineTo(renderPoints.last().x, geometry.bottom)
+                lineTo(renderPoints.first().x, geometry.bottom)
                 close()
             }
             canvas.drawPath(fill, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WidgetPalette.batteryFill })
-            canvas.drawPath(
-                path,
+            canvas.drawPath(path, curvePaint)
+            val end = measured.last()
+            canvas.drawCircle(
+                end.x,
+                end.y,
+                batteryEndpointMarkerRadiusPx(stroke),
                 Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = WidgetPalette.battery
-                    style = Paint.Style.STROKE
-                    strokeWidth = 3f
+                    style = Paint.Style.FILL
                 },
             )
-        }
-    }
-
-    if (geometry.stressPoints.isNotEmpty()) {
-        val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WidgetPalette.stress }
-        val barHalf = if (geometry.stressPoints.size == 1) 3f else 1.5f
-        for (point in geometry.stressPoints) {
-            canvas.drawRect(point.x - barHalf, point.y, point.x + barHalf, geometry.bottom, barPaint)
         }
     }
     return bmp
@@ -826,6 +1057,72 @@ internal fun activityHrMarkerRadiusPx(heightPx: Int, renderScale: Float = Layout
     return fromDp.coerceIn(2f, 3.2f).coerceAtMost(max(2f, heightPx * 0.04f))
 }
 
+/**
+ * Short vertical diffusion under the HR line (~10–18dp), scaled for chart height.
+ * Does not target the baseline — only reaches it when the line is already that close.
+ */
+internal fun activityHrDiffusionDepthPx(
+    plotHeightPx: Float,
+    renderScale: Float = LayoutMetrics.RENDER_SCALE,
+): Float {
+    val target = 14f * renderScale
+    return target
+        .coerceIn(10f * renderScale, 18f * renderScale)
+        .coerceAtMost((plotHeightPx * 0.40f).coerceAtLeast(8f))
+}
+
+internal fun activityHrDiffusionStartAlpha(): Int = 0x3A
+
+internal fun argbWithAlpha(colorRgb: Int, alpha: Int): Int =
+    (alpha.coerceIn(0, 255) shl 24) or (colorRgb and 0x00FFFFFF)
+
+internal fun activityHrDiffusionBottomY(lineY: Float, depthPx: Float, plotBottom: Float): Float =
+    min(lineY + depthPx, plotBottom)
+
+internal fun activityHrDiffusionExtendsToBaseline(lineY: Float, depthPx: Float, plotBottom: Float): Boolean =
+    lineY + depthPx >= plotBottom - 0.01f
+
+internal fun drawActivityHrDiffusionStrip(
+    canvas: Canvas,
+    x0: Float,
+    y0: Float,
+    x1: Float,
+    y1: Float,
+    color0: Int,
+    color1: Int,
+    depthPx: Float,
+    plotBottom: Float,
+) {
+    if (depthPx <= 0.5f) return
+    val y0b = activityHrDiffusionBottomY(y0, depthPx, plotBottom)
+    val y1b = activityHrDiffusionBottomY(y1, depthPx, plotBottom)
+    val path = Path().apply {
+        moveTo(x0, y0)
+        lineTo(x1, y1)
+        lineTo(x1, y1b)
+        lineTo(x0, y0b)
+        close()
+    }
+    val midX = (x0 + x1) * 0.5f
+    val midY = (y0 + y1) * 0.5f
+    val midBottom = (y0b + y1b) * 0.5f
+    val topColor = argbWithAlpha(lerpColorArgb(color0, color1, 0.5f), activityHrDiffusionStartAlpha())
+    val bottomColor = argbWithAlpha(lerpColorArgb(color0, color1, 0.5f), 0)
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        shader = LinearGradient(
+            midX,
+            midY,
+            midX,
+            midBottom,
+            topColor,
+            bottomColor,
+            Shader.TileMode.CLAMP,
+        )
+    }
+    canvas.drawPath(path, paint)
+}
+
 internal fun drawActivityHrChartBitmap(
     widthPx: Int,
     heightPx: Int,
@@ -861,24 +1158,29 @@ internal fun drawActivityHrChartBitmap(
         canvas.drawText("${elapsed / 60}m", x, geo.heightPx - 2f, labelPaint)
     }
 
-    val fill = Path()
-    geo.points.forEachIndexed { index, point ->
-        if (index == 0) {
-            fill.moveTo(point.x, geo.bottom)
-            fill.lineTo(point.x, point.y)
-        } else {
-            fill.lineTo(point.x, point.y)
+    val plotHeight = geo.bottom - geo.top
+    val depth = activityHrDiffusionDepthPx(plotHeight)
+    canvas.save()
+    canvas.clipRect(geo.left, geo.top, geo.right, geo.bottom)
+    for (i in 0 until geo.points.lastIndex) {
+        val a = geo.points[i]
+        val b = geo.points[i + 1]
+        val c0 = heartRateZoneColorArgb(a.value, ceiling)
+        val c1 = heartRateZoneColorArgb(b.value, ceiling)
+        val span = abs(b.x - a.x)
+        val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
+        for (s in 0 until steps) {
+            val t0 = s.toFloat() / steps.toFloat()
+            val t1 = (s + 1).toFloat() / steps.toFloat()
+            val x0 = a.x + (b.x - a.x) * t0
+            val x1 = a.x + (b.x - a.x) * t1
+            val y0 = a.y + (b.y - a.y) * t0
+            val y1 = a.y + (b.y - a.y) * t1
+            val col0 = lerpColorArgb(c0, c1, t0)
+            val col1 = lerpColorArgb(c0, c1, t1)
+            drawActivityHrDiffusionStrip(canvas, x0, y0, x1, y1, col0, col1, depth, geo.bottom)
         }
     }
-    fill.lineTo(geo.points.last().x, geo.bottom)
-    fill.close()
-    canvas.drawPath(
-        fill,
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = 0x22000000
-            style = Paint.Style.FILL
-        },
-    )
 
     val stroke = activityHrStrokeWidthPx(geo.heightPx)
     for (i in 0 until geo.points.lastIndex) {
@@ -895,6 +1197,8 @@ internal fun drawActivityHrChartBitmap(
         }
         canvas.drawLine(a.x, a.y, b.x, b.y, segPaint)
     }
+    canvas.restore()
+
     geo.maxPoint?.let { peak ->
         val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = heartRateZoneColorArgb(peak.value, ceiling)

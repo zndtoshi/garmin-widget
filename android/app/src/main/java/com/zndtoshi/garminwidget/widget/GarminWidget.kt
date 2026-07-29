@@ -173,18 +173,15 @@ private fun TwoRowLayout(
 @Composable
 private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
     Column(
-        modifier = GlanceModifier.fillMaxWidth(),
+        modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.Top,
     ) {
         SleepRing(
             data = data,
             ringDp = spec.sleepRingDp.dp,
             scoreFontSp = sleepScoreFontSp(spec.widthDp),
-        )
-        Text(
-            text = formatSleepDuration(data.sleepDurationSeconds),
-            style = TextStyle(color = ColorProvider(Color(0xFFB0BEC5)), fontSize = 8.sp),
-            maxLines = 1,
+            durationFontSp = sleepDurationFontSp(spec.widthDp),
         )
     }
 }
@@ -192,7 +189,7 @@ private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
 @Composable
 private fun HrvPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
     val header = hrvHeaderPresentation(data.overnightHrv, data.hrvStatus, spec.showPanelTitles)
-    Column(modifier = GlanceModifier.fillMaxWidth()) {
+    Column(modifier = GlanceModifier.fillMaxSize()) {
         HealthPanelHeader(HealthPanelIcon.HRV, header)
         if (header.supportingLeft != null) {
             Text(
@@ -201,6 +198,7 @@ private fun HrvPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
                 maxLines = 1,
             )
         }
+        Spacer(GlanceModifier.defaultWeight())
         if (hasRenderableHrvTrend(data.hrvTrend)) {
             HrvGraphImage(
                 points = data.hrvTrend,
@@ -223,8 +221,9 @@ private fun BodyBatteryPanel(
     rangeEnd: Instant?,
 ) {
     val header = bodyBatteryHeaderPresentation(data.bodyBattery, spec.showPanelTitles)
-    Column(modifier = GlanceModifier.fillMaxWidth()) {
+    Column(modifier = GlanceModifier.fillMaxSize()) {
         HealthPanelHeader(HealthPanelIcon.BODY_BATTERY, header)
+        Spacer(GlanceModifier.defaultWeight())
         CombinedChartImage(
             bodyBattery = bodyBattery,
             stress = stress,
@@ -302,6 +301,7 @@ private fun SleepRing(
     modifier: GlanceModifier = GlanceModifier,
     ringDp: Dp = 52.dp,
     scoreFontSp: Float = 13f,
+    durationFontSp: Float = 8f,
 ) {
     val px = LayoutMetrics.dpToRenderPx(ringDp.value)
     Box(contentAlignment = Alignment.Center, modifier = modifier.width(ringDp).height(ringDp)) {
@@ -310,14 +310,25 @@ private fun SleepRing(
             contentDescription = sleepRingContentDescription(data.sleepScore, data.sleepStages != null),
             modifier = GlanceModifier.fillMaxSize(),
         )
-        Text(
-            text = data.sleepScore?.toString() ?: "—",
-            style = TextStyle(
-                color = ColorProvider(Color.White),
-                fontSize = scoreFontSp.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = data.sleepScore?.toString() ?: "—",
+                style = TextStyle(
+                    color = ColorProvider(Color.White),
+                    fontSize = scoreFontSp.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+            Text(
+                text = formatSleepDuration(data.sleepDurationSeconds),
+                style = TextStyle(
+                    color = ColorProvider(Color(0xFF9FB5BB)),
+                    fontSize = durationFontSp.sp,
+                ),
+                maxLines = 1,
+            )
+        }
     }
 }
 

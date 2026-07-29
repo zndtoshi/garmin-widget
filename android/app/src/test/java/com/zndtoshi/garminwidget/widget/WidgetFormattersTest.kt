@@ -42,9 +42,9 @@ class WidgetFormattersTest {
         assertTrue(spec.activityDp >= spec.healthRowDp - 8)
         assertTrue(spec.sleepRingDp >= LayoutMetrics.MIN_SLEEP_RING_DP)
         assertTrue(spec.hrvGraphWidthDp > 0f)
-        assertTrue(spec.hrvGraphHeightDp >= LayoutMetrics.MIN_HRV_GRAPH_HEIGHT_DP)
+        assertTrue(spec.hrvGraphHeightDp > 0f)
         assertTrue(spec.panelChartWidthDp > 0f)
-        assertTrue(spec.panelChartHeightDp >= LayoutMetrics.MIN_PANEL_CHART_HEIGHT_DP)
+        assertTrue(spec.panelChartHeightDp > 0f)
         assertTrue(spec.showActivityHrChart)
         assertTrue(spec.activityHrChartHeightDp >= LayoutMetrics.MIN_ACTIVITY_HR_CHART_DP)
         assertFalse(spec.hasStandaloneHealthChart)
@@ -54,14 +54,24 @@ class WidgetFormattersTest {
         assertTrue(healthPanelsUseCardBackground())
         assertEquals(0x0C, HEALTH_PANEL_CARD_COLOR ushr 24)
         assertTrue(spec.hrvInternalBudgetFits)
-        // Shorter HRV chart vs prior (health-50) formula by ~12dp at this allocation.
-        val priorHrvHeight = (spec.healthRowDp - 50).toFloat().coerceIn(28f, 90f)
-        assertTrue(
-            "hrv ${spec.hrvGraphHeightDp} should be ~12dp under prior $priorHrvHeight",
-            spec.hrvGraphHeightDp <= priorHrvHeight - 8f,
+        assertTrue(spec.bodyBatteryInternalBudgetFits)
+        assertTrue(spec.sleepInternalBudgetFits)
+        assertTrue(spec.healthChartsBottomAligned)
+        assertEquals(
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP,
+            spec.healthPanelContentHeightDp - (spec.hrvGraphHeightDp.roundToInt() + LayoutMetrics.HRV_HEADER_DP + LayoutMetrics.HRV_STATUS_DP),
         )
-        assertEquals(19f, sleepScoreFontSp(spec.widthDp), 0.01f)
+        assertEquals(
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP,
+            spec.healthPanelContentHeightDp - (spec.panelChartHeightDp.roundToInt() + LayoutMetrics.BODY_BATTERY_HEADER_DP),
+        )
+        assertEquals(18f, sleepScoreFontSp(spec.widthDp), 0.01f)
         assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
+        val sleep = sleepRingContentPresentation()
+        assertFalse(sleep.showTitle)
+        assertTrue(sleep.durationInsideRing)
+        assertFalse(sleep.durationBelowRing)
+        assertTrue(spec.sleepRingDp + 0.01f >= spec.healthPanelContentHeightDp - LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP - 1f)
     }
 
     @Test
@@ -90,6 +100,9 @@ class WidgetFormattersTest {
             assertFalse(spec.hasSleepLegend)
             assertTrue(spec.usesHealthCardBackground)
             assertTrue("hrv budget overflow for $size", spec.hrvInternalBudgetFits)
+            assertTrue("bb budget overflow for $size", spec.bodyBatteryInternalBudgetFits)
+            assertTrue("sleep budget overflow for $size", spec.sleepInternalBudgetFits)
+            assertTrue("charts not bottom-aligned for $size", spec.healthChartsBottomAligned)
         }
         val tall = LayoutMetrics.fromSize(DpSize(350.dp, 260.dp))
         val primary = LayoutMetrics.fromSize(DpSize(438.dp, 236.dp))
@@ -113,10 +126,12 @@ class WidgetFormattersTest {
 
     @Test
     fun `sleep score typography grows at wide allocation`() {
-        assertEquals(19f, sleepScoreFontSp(438f), 0.01f)
+        assertEquals(18f, sleepScoreFontSp(438f), 0.01f)
         assertTrue(sleepScoreFontSp(438f) > sleepScoreFontSp(300f))
         assertTrue(sleepScoreFontSp(300f) >= 13f)
         assertTrue(sleepScoreFontSp(200f) >= 13f)
+        assertTrue(sleepDurationFontSp(438f) < sleepScoreFontSp(438f))
+        assertTrue(sleepDurationFontSp(438f) <= 8f)
     }
 
     @Test

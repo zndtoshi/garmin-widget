@@ -62,12 +62,43 @@ internal data class AdaptiveLayoutSpec(
 
     val usesHealthCardBackground: Boolean get() = healthPanelsUseCardBackground()
 
-    /** Header + status + graph must fit inside the health row for readable Y labels. */
+    /** Usable height inside a health card after EqualPanel vertical padding. */
+    val healthPanelContentHeightDp: Int
+        get() = LayoutMetrics.healthPanelContentHeightDp(healthRowDp)
+
+    /** Header + status + graph + shared bottom inset inside the card content box. */
     val hrvInternalUsedHeightDp: Int
-        get() = LayoutMetrics.HRV_HEADER_DP + LayoutMetrics.HRV_STATUS_DP + hrvGraphHeightDp.roundToInt()
+        get() = LayoutMetrics.HRV_HEADER_DP +
+            LayoutMetrics.HRV_STATUS_DP +
+            hrvGraphHeightDp.roundToInt() +
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP
 
     val hrvInternalBudgetFits: Boolean
-        get() = hrvInternalUsedHeightDp <= healthRowDp
+        get() = hrvInternalUsedHeightDp <= healthPanelContentHeightDp
+
+    /** Header + combined chart + shared bottom inset. */
+    val bodyBatteryInternalUsedHeightDp: Int
+        get() = LayoutMetrics.BODY_BATTERY_HEADER_DP +
+            panelChartHeightDp.roundToInt() +
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP
+
+    val bodyBatteryInternalBudgetFits: Boolean
+        get() = bodyBatteryInternalUsedHeightDp <= healthPanelContentHeightDp
+
+    /** Sleep ring + shared bottom inset (no header / no below-ring duration row). */
+    val sleepInternalUsedHeightDp: Int
+        get() = sleepRingDp.roundToInt() + LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP
+
+    val sleepInternalBudgetFits: Boolean
+        get() = sleepInternalUsedHeightDp <= healthPanelContentHeightDp
+
+    /** HRV and Body Battery charts share the same card-bottom inset and fill remaining height. */
+    val healthChartsBottomAligned: Boolean
+        get() = hrvInternalBudgetFits &&
+            bodyBatteryInternalBudgetFits &&
+            sleepInternalBudgetFits &&
+            kotlin.math.abs(hrvInternalUsedHeightDp - healthPanelContentHeightDp) <= 1 &&
+            kotlin.math.abs(bodyBatteryInternalUsedHeightDp - healthPanelContentHeightDp) <= 1
 
     val estimatedUsedHeightDp: Int
         get() = LayoutMetrics.OUTER_PADDING_DP * 2 +
@@ -96,14 +127,35 @@ internal object LayoutMetrics {
     const val MIN_SLEEP_RING_DP = 36
     const val HRV_HEADER_DP = 14
     const val HRV_STATUS_DP = 12
-    /** Shrink HRV chart vs prior tall allocation (~10–14dp) for breathing room / label visibility. */
-    const val HRV_GRAPH_HEIGHT_REDUCTION_DP = 12
+    const val BODY_BATTERY_HEADER_DP = 14
+    /** Matches EqualPanel vertical padding so chart bottoms share one inset. */
+    const val HEALTH_PANEL_VERTICAL_PADDING_DP = 2
+    const val HEALTH_PANEL_HORIZONTAL_PADDING_DP = 3
+    /** Shared bottom inset inside Sleep / HRV / Body Battery cards. */
+    const val HEALTH_CARD_BOTTOM_INSET_DP = 2
 
     /** Default bitmap render scale for Glance ImageProvider bitmaps. */
     const val RENDER_SCALE = 2f
     const val MAX_BITMAP_WIDTH_PX = 560
     const val MAX_BITMAP_HEIGHT_PX = 200
     const val MAX_LARGE_WIDGET_BITMAP_BYTES = 600 * 1024
+
+    fun healthPanelContentHeightDp(healthRowDp: Int): Int =
+        (healthRowDp - HEALTH_PANEL_VERTICAL_PADDING_DP * 2).coerceAtLeast(1)
+
+    /**
+     * Vertical budget for a health card: header/status/chrome + chart + shared bottom inset
+     * must fit the padded content height (and ideally consume it for bottom alignment).
+     */
+    fun healthPanelChartHeightDp(
+        healthRowDp: Int,
+        headerDp: Int,
+        statusDp: Int = 0,
+    ): Float {
+        val content = healthPanelContentHeightDp(healthRowDp)
+        val chrome = headerDp + statusDp + HEALTH_CARD_BOTTOM_INSET_DP
+        return (content - chrome).toFloat().coerceAtLeast(1f)
+    }
 
     /** Representative Samsung/Lawnchair allocation at the phone's active 479 dpi. */
     fun primaryBudget(): LayoutBudget = fromSize(DpSize(438.dp, 236.dp)).toBudget()
@@ -152,15 +204,20 @@ internal object LayoutMetrics {
             .coerceIn(16, 110)
             .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
 
-        // Sleep has no header; reserve only the duration row and outer card padding.
-        val sleepRing = min(panelWidth - 12f, (health - 18).toFloat())
-            .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 125f)
+        val contentH = healthPanelContentHeightDp(health)
+        // Sleep: no title; duration lives inside the ring — enlarge ring to fill the card.
+        val sleepRing = min(
+            panelWidth - HEALTH_PANEL_HORIZONTAL_PADDING_DP * 2f - 2f,
+            (contentH - HEALTH_CARD_BOTTOM_INSET_DP).toFloat(),
+        ).coerceIn(1f, contentH.toFloat().coerceAtLeast(1f))
+            .coerceAtLeast(MIN_SLEEP_RING_DP.toFloat().coerceAtMost(contentH.toFloat()))
         val graphWidth = (panelWidth - 22f).coerceIn(56f, 120f)
-        // Reserve header+status (~26dp) and shrink chart ~12dp vs prior formula for label room.
-        val hrvHeight = (health - 50 - HRV_GRAPH_HEIGHT_REDUCTION_DP).toFloat()
-            .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 78f)
-        val panelChartHeight = (health - 37).toFloat()
-            .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 90f)
+        // Fill remaining card height under headers so chart baselines share the bottom inset.
+        // Do not coerce upward past the remaining budget on short health rows.
+        val hrvHeight = healthPanelChartHeightDp(health, HRV_HEADER_DP, HRV_STATUS_DP)
+            .coerceIn(1f, contentH.toFloat())
+        val panelChartHeight = healthPanelChartHeightDp(health, BODY_BATTERY_HEADER_DP, statusDp = 0)
+            .coerceIn(1f, contentH.toFloat())
 
         return AdaptiveLayoutSpec(
             widthDp = width,

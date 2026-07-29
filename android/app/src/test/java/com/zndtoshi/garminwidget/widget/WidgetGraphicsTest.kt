@@ -8,9 +8,13 @@ import com.zndtoshi.garminwidget.data.TimelinePoint
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 class WidgetGraphicsTest {
     @Test
@@ -309,5 +313,181 @@ class WidgetGraphicsTest {
         assertTrue(geo.yAtMax < geo.yAtMin)
         assertTrue(geo.showMidLabel)
         assertTrue(geo.plotTop >= 6f)
+    }
+
+    @Test
+    fun `stress bars classify rest blue and stress orange`() {
+        assertEquals(StressBarKind.REST, classifyStressBar(0))
+        assertEquals(StressBarKind.REST, classifyStressBar(25))
+        assertEquals(StressBarKind.STRESS, classifyStressBar(26))
+        assertEquals(StressBarKind.STRESS, classifyStressBar(100))
+        assertNull(classifyStressBar(-1))
+        assertNull(classifyStressBar(101))
+        assertEquals(WidgetPalette.stressRest, stressBarColorArgb(0))
+        assertEquals(WidgetPalette.stressRest, stressBarColorArgb(25))
+        assertEquals(WidgetPalette.stress, stressBarColorArgb(26))
+        assertEquals(WidgetPalette.stress, stressBarColorArgb(100))
+    }
+
+    @Test
+    fun `mixed stress series counts blue and orange bars`() {
+        val values = List(38) { 12 } + List(10) { 40 }
+        val (rest, stress) = countStressBarColors(values)
+        assertEquals(38, rest)
+        assertEquals(10, stress)
+        assertEquals(48, rest + stress)
+    }
+
+    @Test
+    fun `combined chart layers draw grid then bars then curve`() {
+        assertEquals(
+            listOf(
+                CombinedChartLayer.GRID,
+                CombinedChartLayer.STRESS_BARS,
+                CombinedChartLayer.BATTERY_CURVE,
+                CombinedChartLayer.BATTERY_MARKER,
+            ),
+            combinedChartDrawOrder(),
+        )
+    }
+
+    @Test
+    fun `six sparse body battery samples produce smooth path with exact endpoints`() {
+        val dayStart = Instant.parse("2026-07-28T00:00:00Z")
+        val dayEnd = Instant.parse("2026-07-29T00:00:00Z")
+        val measured = listOf(
+            TimelinePoint(Instant.parse("2026-07-28T00:00:00Z"), 17),
+            TimelinePoint(Instant.parse("2026-07-28T02:06:00Z"), 30),
+            TimelinePoint(Instant.parse("2026-07-28T02:15:00Z"), 30),
+            TimelinePoint(Instant.parse("2026-07-28T04:24:00Z"), 47),
+            TimelinePoint(Instant.parse("2026-07-28T04:30:00Z"), 48),
+            TimelinePoint(Instant.parse("2026-07-28T06:06:00Z"), 64),
+        )
+        val geo = buildCombinedChartGeometry(200, 80, measured, emptyList(), dayStart, dayEnd)
+        assertEquals(6, geo.batteryPoints.size)
+        assertEquals(17, geo.batteryPoints.first().value)
+        assertEquals(64, geo.batteryPoints.last().value)
+
+        val gapsMinutes = measured.zipWithNext { a, b ->
+            (b.timestamp.epochSecond - a.timestamp.epochSecond) / 60
+        }
+        assertEquals(listOf(126L, 9L, 129L, 6L, 96L), gapsMinutes)
+
+        val smooth = buildSmoothBatteryRenderPoints(geo.batteryPoints, samplesPerSegmentHint = 12)
+        assertTrue("expected denser render path, got ${smooth.size}", smooth.size > measured.size)
+        // 5 segments × ≥12 samples + start ≈ ≥61
+        assertTrue(smooth.size >= 1 + 5 * 12)
+        assertEquals(geo.batteryPoints.first().x, smooth.first().x, 0.01f)
+        assertEquals(geo.batteryPoints.first().y, smooth.first().y, 0.01f)
+        assertEquals(geo.batteryPoints.last().x, smooth.last().x, 0.01f)
+        assertEquals(geo.batteryPoints.last().y, smooth.last().y, 0.01f)
+        assertEquals(17, smooth.first().value)
+        assertEquals(64, smooth.last().value)
+        assertEquals(0xFFF5F7FA.toInt(), WidgetPalette.battery)
+        assertTrue(WidgetPalette.batteryFill ushr 24 <= 0x20)
+    }
+
+    @Test
+    fun `monotone cubic stays within adjacent values and keeps plateaus flat`() {
+        val xs = floatArrayOf(0f, 126f, 135f, 264f, 270f, 366f)
+        val values = floatArrayOf(17f, 30f, 30f, 47f, 48f, 64f)
+        val samples = sampleMonotoneCubicValues(xs, values, samplesPerSegment = 16)
+        assertEquals(xs.first(), samples.first().first, 0.001f)
+        assertEquals(values.first(), samples.first().second, 0.001f)
+        assertEquals(xs.last(), samples.last().first, 0.001f)
+        assertEquals(values.last(), samples.last().second, 0.001f)
+
+        for (i in 0 until xs.size - 1) {
+            val lo = min(values[i], values[i + 1])
+            val hi = max(values[i], values[i + 1])
+            val mid = samples.filter { it.first in xs[i]..xs[i + 1] }
+            assertTrue(mid.all { it.second in lo..hi })
+        }
+
+        // Equal-value plateau 30→30 stays flat (no NaN / overshoot).
+        val plateau = samples.filter { it.first in 126f..135f }
+        assertTrue(plateau.isNotEmpty())
+        assertTrue(plateau.all { abs(it.second - 30f) < 1e-3f })
+        assertTrue(fritschCarlsonSlopes(xs, values).all { it.isFinite() })
+    }
+
+    @Test
+    fun `monotone cubic handles empty one two duplicate and irregular safely`() {
+        assertTrue(sampleMonotoneCubicValues(floatArrayOf(), floatArrayOf()).isEmpty())
+        assertEquals(listOf(1f to 50f), sampleMonotoneCubicValues(floatArrayOf(1f), floatArrayOf(50f)))
+
+        val two = sampleMonotoneCubicValues(floatArrayOf(0f, 10f), floatArrayOf(10f, 40f), samplesPerSegment = 5)
+        assertEquals(0f, two.first().first, 0.001f)
+        assertEquals(10f, two.last().first, 0.001f)
+        assertEquals(10f, two.first().second, 0.001f)
+        assertEquals(40f, two.last().second, 0.001f)
+
+        val deduped = dedupeChartPointsByX(
+            listOf(
+                ChartPoint(5f, 10f, 20),
+                ChartPoint(5f, 12f, 25),
+                ChartPoint(8f, 14f, 30),
+            ),
+        )
+        assertEquals(2, deduped.size)
+        assertEquals(25, deduped.first().value)
+
+        val irregular = buildCombinedChartGeometry(
+            104,
+            54,
+            listOf(
+                TimelinePoint(Instant.parse("2026-07-28T00:00:00Z"), 17),
+                TimelinePoint(Instant.parse("2026-07-28T02:06:00Z"), 30),
+                TimelinePoint(Instant.parse("2026-07-28T06:06:00Z"), 64),
+            ),
+            emptyList(),
+            Instant.parse("2026-07-28T00:00:00Z"),
+            Instant.parse("2026-07-29T00:00:00Z"),
+        )
+        val plot = irregular.right - irregular.left
+        // 2:06 is 126/1440 of the day ≈ 0.0875
+        assertEquals(irregular.left + plot * (126.0 / 1440.0).toFloat(), irregular.batteryPoints[1].x, 0.5f)
+        assertTrue(buildSmoothBatteryRenderPoints(emptyList()).isEmpty())
+        assertEquals(1, buildSmoothBatteryRenderPoints(listOf(ChartPoint(1f, 2f, 3))).size)
+    }
+
+    @Test
+    fun `stress bar widths shrink for close timestamps`() {
+        val clustered = listOf(
+            ChartPoint(10f, 20f, 10),
+            ChartPoint(12f, 18f, 40),
+            ChartPoint(30f, 15f, 15),
+        )
+        val closeHalf = stressBarHalfWidthPx(clustered, 0)
+        val wideHalf = stressBarHalfWidthPx(clustered, 2)
+        assertTrue(closeHalf <= 1.35f)
+        assertTrue(closeHalf < wideHalf || closeHalf <= 0.85f)
+        assertEquals(3f, stressBarHalfWidthPx(listOf(ChartPoint(5f, 5f, 10)), 0), 0.01f)
+    }
+
+    @Test
+    fun `activity hr diffusion is zone colored short and fades to transparent`() {
+        val plotHeight = 80f
+        val depth = activityHrDiffusionDepthPx(plotHeight)
+        assertTrue("depth $depth", depth in (10f * LayoutMetrics.RENDER_SCALE)..(18f * LayoutMetrics.RENDER_SCALE + 0.01f))
+        assertTrue(depth < plotHeight)
+        assertEquals(0x3A, activityHrDiffusionStartAlpha())
+
+        val midLineY = 20f
+        val bottom = 100f
+        val diffusedBottom = activityHrDiffusionBottomY(midLineY, depth, bottom)
+        assertEquals(midLineY + depth, diffusedBottom, 0.01f)
+        assertFalse(activityHrDiffusionExtendsToBaseline(midLineY, depth, bottom))
+
+        val nearBaselineY = bottom - depth * 0.4f
+        assertTrue(activityHrDiffusionExtendsToBaseline(nearBaselineY, depth, bottom))
+        assertEquals(bottom, activityHrDiffusionBottomY(nearBaselineY, depth, bottom), 0.01f)
+
+        val green = heartRateZoneColorArgb(120, 200)
+        val red = heartRateZoneColorArgb(200, 200)
+        assertEquals(activityHrDiffusionStartAlpha(), argbWithAlpha(green, activityHrDiffusionStartAlpha()) ushr 24)
+        assertEquals(0, argbWithAlpha(red, 0) ushr 24)
+        assertEquals(green and 0x00FFFFFF, argbWithAlpha(green, activityHrDiffusionStartAlpha()) and 0x00FFFFFF)
+        assertTrue(green != red)
     }
 }

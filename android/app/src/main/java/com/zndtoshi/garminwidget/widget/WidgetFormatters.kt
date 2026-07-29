@@ -221,12 +221,32 @@ internal fun bodyBatteryHeaderPresentation(
     supportingLeft = null,
 )
 
+/**
+ * Sleep card: no title/icon; duration sits inside the ring under the score
+ * (no separate duration row below the ring).
+ */
+internal data class SleepRingContentPresentation(
+    val showTitle: Boolean = false,
+    val durationInsideRing: Boolean = true,
+    val durationBelowRing: Boolean = false,
+)
+
+internal fun sleepRingContentPresentation(): SleepRingContentPresentation =
+    SleepRingContentPresentation()
+
 /** Sleep score inside the ring: larger at the current ~438dp allocation, safe when narrower. */
 internal fun sleepScoreFontSp(widgetWidthDp: Float): Float = when {
-    widgetWidthDp >= 400f -> 19f
-    widgetWidthDp >= 340f -> 17f
-    widgetWidthDp >= 280f -> 15f
+    widgetWidthDp >= 400f -> 18f
+    widgetWidthDp >= 340f -> 16f
+    widgetWidthDp >= 280f -> 14f
     else -> 13f
+}
+
+/** Muted duration under the score inside the ring. */
+internal fun sleepDurationFontSp(widgetWidthDp: Float): Float = when {
+    widgetWidthDp >= 400f -> 8f
+    widgetWidthDp >= 300f -> 7.5f
+    else -> 7f
 }
 
 internal fun hasAmbiguousMetricAbbreviation(labels: Collection<String>): Boolean =
