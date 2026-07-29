@@ -975,10 +975,10 @@ internal fun buildActivityHrChartGeometry(
     return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
-internal val HR_NEUTRAL_WHITE = 0xFFFFFFFF.toInt()
+internal val HR_NEUTRAL_GRAY = 0xFF9AA0A6.toInt()
 internal val HR_HIGH_RED = 0xFFF44336.toInt()
 
-internal fun activityHrDiffusionColorArgb(): Int = HR_NEUTRAL_WHITE
+internal fun activityHrDiffusionColorArgb(): Int = HR_NEUTRAL_GRAY
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
 internal fun resolveActivityHrCeiling(
@@ -1012,7 +1012,7 @@ internal fun lerpColorArgb(from: Int, to: Int, t: Float): Int {
 internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int {
     val ceiling = maxHr.coerceAtLeast(1)
     val ratio = heartRate.toFloat() / ceiling.toFloat()
-    return if (ratio >= 0.95f) HR_HIGH_RED else HR_NEUTRAL_WHITE
+    return if (ratio >= 0.95f) HR_HIGH_RED else HR_NEUTRAL_GRAY
 }
 
 /** Target ~1.25dp stroke at render scale 2 → ~2.5px. */
@@ -1042,6 +1042,13 @@ internal fun activityHrDiffusionDepthPx(
 
 internal fun activityHrDiffusionStartAlpha(): Int = 0x60
 
+internal fun activityHrPeakDiffusionDepthPx(
+    plotHeightPx: Float,
+    renderScale: Float = LayoutMetrics.RENDER_SCALE,
+): Float = (12f * renderScale).coerceAtMost((plotHeightPx * 0.28f).coerceAtLeast(6f))
+
+internal fun activityHrPeakDiffusionStartAlpha(): Int = 0x58
+
 internal fun argbWithAlpha(colorRgb: Int, alpha: Int): Int =
     (alpha.coerceIn(0, 255) shl 24) or (colorRgb and 0x00FFFFFF)
 
@@ -1061,6 +1068,7 @@ internal fun drawActivityHrDiffusionStrip(
     color1: Int,
     depthPx: Float,
     plotBottom: Float,
+    startAlpha: Int = activityHrDiffusionStartAlpha(),
 ) {
     if (depthPx <= 0.5f) return
     val y0b = activityHrDiffusionBottomY(y0, depthPx, plotBottom)
@@ -1075,7 +1083,7 @@ internal fun drawActivityHrDiffusionStrip(
     val midX = (x0 + x1) * 0.5f
     val midY = (y0 + y1) * 0.5f
     val midBottom = (y0b + y1b) * 0.5f
-    val topColor = argbWithAlpha(lerpColorArgb(color0, color1, 0.5f), activityHrDiffusionStartAlpha())
+    val topColor = argbWithAlpha(lerpColorArgb(color0, color1, 0.5f), startAlpha)
     val bottomColor = argbWithAlpha(lerpColorArgb(color0, color1, 0.5f), 0)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
@@ -1148,6 +1156,37 @@ internal fun drawActivityHrChartBitmap(
             val col0 = lerpColorArgb(c0, c1, t0)
             val col1 = lerpColorArgb(c0, c1, t1)
             drawActivityHrDiffusionStrip(canvas, x0, y0, x1, y1, col0, col1, depth, geo.bottom)
+        }
+    }
+
+    // Add a short red glow only immediately beneath samples at or above 95% of max HR.
+    val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
+    for (i in 0 until geo.points.lastIndex) {
+        val a = geo.points[i]
+        val b = geo.points[i + 1]
+        val span = abs(b.x - a.x)
+        val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
+        for (s in 0 until steps) {
+            val t0 = s.toFloat() / steps.toFloat()
+            val t1 = (s + 1).toFloat() / steps.toFloat()
+            val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
+            if (midpointHr / ceiling.toFloat() < 0.95f) continue
+            val x0 = a.x + (b.x - a.x) * t0
+            val x1 = a.x + (b.x - a.x) * t1
+            val y0 = a.y + (b.y - a.y) * t0
+            val y1 = a.y + (b.y - a.y) * t1
+            drawActivityHrDiffusionStrip(
+                canvas,
+                x0,
+                y0,
+                x1,
+                y1,
+                HR_HIGH_RED,
+                HR_HIGH_RED,
+                peakDepth,
+                geo.bottom,
+                activityHrPeakDiffusionStartAlpha(),
+            )
         }
     }
 
