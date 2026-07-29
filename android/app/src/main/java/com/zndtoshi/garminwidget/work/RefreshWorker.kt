@@ -9,7 +9,7 @@ import com.zndtoshi.garminwidget.data.SettingsStore
 import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.network.WidgetApiClient
 import com.zndtoshi.garminwidget.network.WidgetAuthException
-import com.zndtoshi.garminwidget.widget.GarminWidget
+import com.zndtoshi.garminwidget.widget.bumpWidgetRefreshRevision
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,7 +25,7 @@ class RefreshWorker(
         val token = settings.bearerToken()
         if (token == null) {
             store.saveFailure(LocalStatus.NOT_CONFIGURED)
-            GarminWidget().updateAll(applicationContext)
+            bumpWidgetRefreshRevision(applicationContext)
             return Result.failure()
         }
 
@@ -34,21 +34,21 @@ class RefreshWorker(
                 WidgetApiClient().refresh(settings.backendUrl(), token)
             }
             store.saveSuccess(rawJson)
-            GarminWidget().updateAll(applicationContext)
+            bumpWidgetRefreshRevision(applicationContext)
             Result.success()
         } catch (_: WidgetAuthException) {
             store.saveFailure(LocalStatus.AUTH_ERROR)
-            GarminWidget().updateAll(applicationContext)
+            bumpWidgetRefreshRevision(applicationContext)
             Result.failure()
         } catch (error: CancellationException) {
             throw error
         } catch (_: IOException) {
             store.saveFailure(LocalStatus.NETWORK_ERROR)
-            GarminWidget().updateAll(applicationContext)
+            bumpWidgetRefreshRevision(applicationContext)
             Result.failure()
         } catch (_: RuntimeException) {
             store.saveFailure(LocalStatus.NETWORK_ERROR)
-            GarminWidget().updateAll(applicationContext)
+            bumpWidgetRefreshRevision(applicationContext)
             Result.failure()
         }
     }

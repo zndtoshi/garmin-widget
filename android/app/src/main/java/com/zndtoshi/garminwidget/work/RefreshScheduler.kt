@@ -1,14 +1,11 @@
 package com.zndtoshi.garminwidget.work
 
 import android.content.Context
-import androidx.glance.appwidget.updateAll
-import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.zndtoshi.garminwidget.data.WidgetStore
-import com.zndtoshi.garminwidget.widget.GarminWidget
+import com.zndtoshi.garminwidget.widget.bumpWidgetRefreshRevision
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -27,13 +24,8 @@ object RefreshScheduler {
         }
 
         WidgetStore(context).markRefreshing()
-        GarminWidget().updateAll(context)
+        bumpWidgetRefreshRevision(context)
         val request = OneTimeWorkRequestBuilder<RefreshWorker>()
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build(),
-            )
             .build()
         workManager.enqueueUniqueWork(
             UNIQUE_WORK_NAME,

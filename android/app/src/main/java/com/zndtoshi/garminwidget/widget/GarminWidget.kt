@@ -14,6 +14,7 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.provideContent
+import androidx.glance.currentState
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
@@ -26,6 +27,8 @@ import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.state.PreferencesGlanceStateDefinition
+import androidx.datastore.preferences.core.Preferences
 import androidx.glance.unit.ColorProvider
 import com.zndtoshi.garminwidget.data.LocalStatus
 import com.zndtoshi.garminwidget.data.SettingsStore
@@ -33,6 +36,8 @@ import com.zndtoshi.garminwidget.data.WidgetResponse
 import com.zndtoshi.garminwidget.data.WidgetStore
 
 class GarminWidget : GlanceAppWidget() {
+    override val stateDefinition = PreferencesGlanceStateDefinition
+
     override val sizeMode = SizeMode.Responsive(
         setOf(
             androidx.compose.ui.unit.DpSize(180.dp, 110.dp),
@@ -41,12 +46,14 @@ class GarminWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val state = WidgetStore(context).read()
-        val configured = SettingsStore(context).isConfigured()
         provideContent {
+            val glanceState = currentState<Preferences>()
+            val refreshRevision = glanceState[RefreshRevisionKey] ?: 0L
+            val state = WidgetStore(context).read()
+            val configured = SettingsStore(context).isConfigured()
             WidgetContent(
                 data = state.data,
-                status = if (configured) state.status else LocalStatus.NOT_CONFIGURED,
+                status = resolveVisibleStatus(configured, state.status, refreshRevision),
             )
         }
     }
@@ -203,4 +210,13 @@ private fun footer(data: WidgetResponse, status: LocalStatus): String {
         else -> "Updated"
     }
     return "$prefix · tap card for Garmin Connect"
+}
+
+@Suppress("UNUSED_PARAMETER")
+internal fun resolveVisibleStatus(
+    configured: Boolean,
+    storedStatus: LocalStatus,
+    refreshRevision: Long,
+): LocalStatus {
+    return if (configured) storedStatus else LocalStatus.NOT_CONFIGURED
 }
