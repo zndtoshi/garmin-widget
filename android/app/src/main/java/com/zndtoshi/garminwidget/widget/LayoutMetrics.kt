@@ -152,14 +152,14 @@ internal object LayoutMetrics {
             .coerceIn(16, 110)
             .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
 
-        // Fill the square-cornered panel while reserving its title and duration rows.
-        val sleepRing = min(panelWidth - 12f, (health - 27).toFloat())
-            .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 110f)
+        // Sleep has no header; reserve only the duration row and outer card padding.
+        val sleepRing = min(panelWidth - 12f, (health - 18).toFloat())
+            .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 125f)
         val graphWidth = (panelWidth - 22f).coerceIn(56f, 120f)
         // Reserve header+status (~26dp) and shrink chart ~12dp vs prior formula for label room.
         val hrvHeight = (health - 50 - HRV_GRAPH_HEIGHT_REDUCTION_DP).toFloat()
             .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 78f)
-        val panelChartHeight = (health - 49).toFloat()
+        val panelChartHeight = (health - 37).toFloat()
             .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 90f)
 
         return AdaptiveLayoutSpec(

@@ -201,13 +201,6 @@ internal data class HealthPanelHeaderPresentation(
     val duplicatesTrailingBelow: Boolean get() = false
 }
 
-internal fun sleepHeaderPresentation(showTitle: Boolean): HealthPanelHeaderPresentation =
-    HealthPanelHeaderPresentation(
-        title = if (showTitle) "Sleep Score" else null,
-        trailingValue = null,
-        supportingLeft = null,
-    )
-
 internal fun hrvHeaderPresentation(
     overnightHrv: Int?,
     hrvStatus: String?,
@@ -221,16 +214,12 @@ internal fun hrvHeaderPresentation(
 
 internal fun bodyBatteryHeaderPresentation(
     bodyBattery: Int?,
-    stress: Int?,
     showTitle: Boolean,
-): HealthPanelHeaderPresentation {
-    val labels = batteryStressPresentation(bodyBattery, stress)
-    return HealthPanelHeaderPresentation(
-        title = if (showTitle) labels.bodyBatteryLabel else null,
-        trailingValue = labels.bodyBatteryValue,
-        supportingLeft = "${labels.stressLabel} ${labels.stressValue}",
-    )
-}
+): HealthPanelHeaderPresentation = HealthPanelHeaderPresentation(
+    title = if (showTitle) "Body Battery" else null,
+    trailingValue = bodyBattery?.toString() ?: "—",
+    supportingLeft = null,
+)
 
 /** Sleep score inside the ring: larger at the current ~438dp allocation, safe when narrower. */
 internal fun sleepScoreFontSp(widgetWidthDp: Float): Float = when {

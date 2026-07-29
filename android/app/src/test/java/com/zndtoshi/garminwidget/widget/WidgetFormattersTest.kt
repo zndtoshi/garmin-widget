@@ -104,15 +104,11 @@ class WidgetFormattersTest {
         assertEquals("Balanced", hrv.supportingLeft)
         assertFalse(hrv.duplicatesTrailingBelow)
 
-        val bb = bodyBatteryHeaderPresentation(64, 20, showTitle = true)
+        val bb = bodyBatteryHeaderPresentation(64, showTitle = true)
         assertEquals("Body Battery", bb.title)
         assertEquals("64", bb.trailingValue)
-        assertEquals("Stress 20", bb.supportingLeft)
+        assertEquals(null, bb.supportingLeft)
         assertFalse(bb.duplicatesTrailingBelow)
-
-        val sleep = sleepHeaderPresentation(showTitle = true)
-        assertEquals("Sleep Score", sleep.title)
-        assertEquals(null, sleep.trailingValue)
     }
 
     @Test

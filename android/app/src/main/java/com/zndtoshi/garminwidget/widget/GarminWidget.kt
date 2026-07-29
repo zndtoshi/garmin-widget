@@ -172,9 +172,10 @@ private fun TwoRowLayout(
 
 @Composable
 private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
-    val header = sleepHeaderPresentation(spec.showPanelTitles)
-    Column(modifier = GlanceModifier.fillMaxWidth()) {
-        HealthPanelHeader(HealthPanelIcon.SLEEP, header)
+    Column(
+        modifier = GlanceModifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         SleepRing(
             data = data,
             ringDp = spec.sleepRingDp.dp,
@@ -221,16 +222,9 @@ private fun BodyBatteryPanel(
     rangeStart: Instant?,
     rangeEnd: Instant?,
 ) {
-    val header = bodyBatteryHeaderPresentation(data.bodyBattery, data.stress, spec.showPanelTitles)
+    val header = bodyBatteryHeaderPresentation(data.bodyBattery, spec.showPanelTitles)
     Column(modifier = GlanceModifier.fillMaxWidth()) {
         HealthPanelHeader(HealthPanelIcon.BODY_BATTERY, header)
-        if (header.supportingLeft != null) {
-            Text(
-                text = header.supportingLeft,
-                style = TextStyle(color = ColorProvider(Color(0xFFFFA726)), fontSize = 8.sp),
-                maxLines = 1,
-            )
-        }
         CombinedChartImage(
             bodyBattery = bodyBattery,
             stress = stress,
