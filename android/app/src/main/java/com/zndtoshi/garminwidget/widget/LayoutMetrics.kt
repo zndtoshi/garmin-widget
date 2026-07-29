@@ -132,25 +132,21 @@ internal object LayoutMetrics {
 
         val showTitles = health >= 68 && panelWidth >= 90f
         val showSecondary = activity >= 88
-        val hrChart = when {
-            activity >= 100 -> min(40, activity / 3)
-            activity >= 80 -> 32
-            activity >= 64 -> MIN_ACTIVITY_HR_CHART_DP
-            else -> MIN_ACTIVITY_HR_CHART_DP.coerceAtMost((activity - 28).coerceAtLeast(16))
-        }.coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3)).coerceAtLeast(16)
+        // Size the visual elements from the actual row budgets instead of using
+        // conservative fixed caps. This lets a resized widget consume the space
+        // the launcher has really allocated while retaining compact fallbacks.
+        val activityTextBudget = if (showSecondary) 56 else 46
+        val hrChart = (activity - activityTextBudget)
+            .coerceIn(16, 64)
+            .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
 
-        val sleepRing = min(52f, panelWidth - 18f).coerceAtLeast(MIN_SLEEP_RING_DP.toFloat())
+        val sleepRing = min(panelWidth - 18f, (health - 27).toFloat())
+            .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 68f)
         val graphWidth = (panelWidth - 12f).coerceIn(56f, 120f)
-        val hrvHeight = when {
-            health >= 90 -> 42f
-            health >= 72 -> 34f
-            else -> MIN_HRV_GRAPH_HEIGHT_DP.toFloat()
-        }
-        val panelChartHeight = when {
-            health >= 90 -> 32f
-            health >= 72 -> 26f
-            else -> MIN_PANEL_CHART_HEIGHT_DP.toFloat()
-        }
+        val hrvHeight = (health - 42).toFloat()
+            .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 52f)
+        val panelChartHeight = (health - 41).toFloat()
+            .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 46f)
 
         return AdaptiveLayoutSpec(
             widthDp = width,

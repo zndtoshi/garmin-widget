@@ -44,6 +44,7 @@ import com.zndtoshi.garminwidget.data.SettingsStore
 import com.zndtoshi.garminwidget.data.TimelinePoint
 import com.zndtoshi.garminwidget.data.WidgetResponse
 import com.zndtoshi.garminwidget.data.WidgetStore
+import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
 
@@ -146,6 +147,7 @@ private fun TwoRowLayout(
     spec: AdaptiveLayoutSpec,
 ) {
     val labels = batteryStressPresentation(data.bodyBattery, data.stress)
+    val dayRange = timelineDayRange(data.date, zoneId)
     Row(
         modifier = GlanceModifier.fillMaxWidth().height(spec.healthRowDp.dp),
         verticalAlignment = Alignment.Top,
@@ -157,7 +159,7 @@ private fun TwoRowLayout(
             HrvPanel(data, spec)
         }
         EqualPanel(widthDp = spec.panelWidthDp.dp) {
-            BodyBatteryPanel(data, bodyBattery, stress, labels, spec)
+            BodyBatteryPanel(data, bodyBattery, stress, labels, spec, dayRange?.first, dayRange?.second)
         }
     }
     if (spec.afterHealthSpacerDp > 0) {
@@ -222,6 +224,8 @@ private fun BodyBatteryPanel(
     stress: List<TimelinePoint>,
     labels: BatteryStressPresentation,
     spec: AdaptiveLayoutSpec,
+    rangeStart: Instant?,
+    rangeEnd: Instant?,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         PanelTitleRow(HealthPanelIcon.BODY_BATTERY, if (spec.showPanelTitles) labels.bodyBatteryLabel else null)
@@ -242,6 +246,8 @@ private fun BodyBatteryPanel(
             stressValue = data.stress,
             widthDp = spec.panelChartWidthDp.dp,
             heightDp = spec.panelChartHeightDp.dp,
+            rangeStart = rangeStart,
+            rangeEnd = rangeEnd,
         )
     }
 }
@@ -302,10 +308,12 @@ private fun CombinedChartImage(
     stressValue: Int?,
     widthDp: Dp,
     heightDp: Dp,
+    rangeStart: Instant?,
+    rangeEnd: Instant?,
 ) {
     val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
     Image(
-        provider = ImageProvider(drawCombinedChartBitmap(wPx, hPx, bodyBattery, stress)),
+        provider = ImageProvider(drawCombinedChartBitmap(wPx, hPx, bodyBattery, stress, rangeStart, rangeEnd)),
         contentDescription = chartContentDescription(bodyBattery.size, stress.size, bodyBatteryValue, stressValue),
         modifier = GlanceModifier.width(widthDp).height(heightDp),
     )
@@ -385,27 +393,32 @@ private fun ActivityStrip(
                 modifier = GlanceModifier.defaultWeight(),
             )
         }
-        Text(
-            text = buildString {
-                append(formatLocalTime(activity.startedAt, zoneId, locale))
-                append("  ")
-                append(formatDuration(activity.durationSeconds))
-                append("  ")
-                append(formatDistanceKm(activity.distanceMeters))
-                append("  ")
-                append(activityPrimaryMetric(activity))
-                append("  ")
-                append(formatCalories(activity.calories))
-                append("  Avg ")
-                append(formatHr(activity.averageHeartRate))
-                if (activity.maxHeartRate != null) {
-                    append("  Max HR ")
-                    append(formatHr(activity.maxHeartRate))
-                }
-            },
-            style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
-            maxLines = 2,
-        )
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = buildString {
+                    append(formatLocalTime(activity.startedAt, zoneId, locale))
+                    append("  ")
+                    append(formatDuration(activity.durationSeconds))
+                    append("  ")
+                    append(formatDistanceKm(activity.distanceMeters))
+                    append("  ")
+                    append(activityPrimaryMetric(activity))
+                    append("  ")
+                    append(formatCalories(activity.calories))
+                },
+                style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
+                maxLines = 2,
+                modifier = GlanceModifier.defaultWeight(),
+            )
+            if (activity.maxHeartRate != null) {
+                Spacer(GlanceModifier.width(4.dp))
+                Text(
+                    text = "Max HR ${formatHr(activity.maxHeartRate)}",
+                    style = TextStyle(color = ColorProvider(Color.White), fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                    maxLines = 1,
+                )
+            }
+        }
         if (showSecondaryDetails) {
             val details = activityDetailPairs(activity, rich = true)
                 .filterNot { it.first == "Max HR" }

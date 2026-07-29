@@ -12,6 +12,7 @@ import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
 import com.zndtoshi.garminwidget.data.SleepStages
 import com.zndtoshi.garminwidget.data.TimelinePoint
+import java.time.Instant
 import java.util.Locale
 import kotlin.math.max
 
@@ -83,6 +84,8 @@ internal fun buildCombinedChartGeometry(
     heightPx: Int,
     battery: List<TimelinePoint>,
     stress: List<TimelinePoint>,
+    rangeStart: Instant? = null,
+    rangeEnd: Instant? = null,
 ): ChartGeometry {
     val w = max(1, widthPx)
     val h = max(1, heightPx)
@@ -98,8 +101,8 @@ internal fun buildCombinedChartGeometry(
         return ChartGeometry(w, h, left, top, right, bottom, emptyList(), emptyList())
     }
 
-    val minTs = allTs.minOrNull()!!
-    val maxTs = allTs.maxOrNull()!!
+    val minTs = rangeStart?.toEpochMilli() ?: allTs.minOrNull()!!
+    val maxTs = rangeEnd?.toEpochMilli() ?: allTs.maxOrNull()!!
     val span = (maxTs - minTs).coerceAtLeast(1L).toDouble()
 
     fun xOf(epochMs: Long): Float {
@@ -304,8 +307,10 @@ internal fun drawCombinedChartBitmap(
     heightPx: Int,
     battery: List<TimelinePoint>,
     stress: List<TimelinePoint>,
+    rangeStart: Instant? = null,
+    rangeEnd: Instant? = null,
 ): Bitmap {
-    val geometry = buildCombinedChartGeometry(widthPx, heightPx, battery, stress)
+    val geometry = buildCombinedChartGeometry(widthPx, heightPx, battery, stress, rangeStart, rangeEnd)
     val bmp = Bitmap.createBitmap(geometry.widthPx, geometry.heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     if (geometry.batteryPoints.isEmpty() && geometry.stressPoints.isEmpty()) return bmp

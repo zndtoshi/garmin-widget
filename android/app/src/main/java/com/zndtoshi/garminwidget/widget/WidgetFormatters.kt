@@ -88,6 +88,12 @@ internal fun filterTimelineForResponseDate(
         .takeLast(48)
 }
 
+internal fun timelineDayRange(responseDate: String?, zoneId: ZoneId): Pair<Instant, Instant>? {
+    val date = runCatching { LocalDate.parse(responseDate) }.getOrNull() ?: return null
+    val start = date.atStartOfDay(zoneId).toInstant()
+    return start to date.plusDays(1).atStartOfDay(zoneId).toInstant()
+}
+
 internal fun formatLocalTime(
     instant: Instant?,
     zoneId: ZoneId,

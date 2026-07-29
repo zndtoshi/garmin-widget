@@ -84,6 +84,14 @@ class WidgetFormattersTest {
     }
 
     @Test
+    fun `timeline day range follows the response date in the phone timezone`() {
+        val range = timelineDayRange("2026-07-29", ZoneId.of("Europe/Bucharest"))!!
+
+        assertEquals(Instant.parse("2026-07-28T21:00:00Z"), range.first)
+        assertEquals(Instant.parse("2026-07-29T21:00:00Z"), range.second)
+    }
+
+    @Test
     fun `sleep stage legend is absent from widget presentation`() {
         assertFalse(widgetRendersSleepStageLegend())
         assertEquals("Deep 1h 30m", formatStageLabel("Deep", 5400))

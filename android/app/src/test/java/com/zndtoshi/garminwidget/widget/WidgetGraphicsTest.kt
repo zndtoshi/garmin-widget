@@ -100,6 +100,21 @@ class WidgetGraphicsTest {
     }
 
     @Test
+    fun `combined chart can use a complete day for its horizontal scale`() {
+        val start = Instant.parse("2026-07-28T00:00:00Z")
+        val end = Instant.parse("2026-07-29T00:00:00Z")
+        val stress = listOf(
+            TimelinePoint(Instant.parse("2026-07-28T06:00:00Z"), 20),
+            TimelinePoint(Instant.parse("2026-07-28T18:00:00Z"), 40),
+        )
+        val geo = buildCombinedChartGeometry(104, 54, emptyList(), stress, start, end)
+        val plotWidth = geo.right - geo.left
+
+        assertEquals(geo.left + plotWidth * 0.25f, geo.stressPoints[0].x, 0.01f)
+        assertEquals(geo.left + plotWidth * 0.75f, geo.stressPoints[1].x, 0.01f)
+    }
+
+    @Test
     fun `hrv graph uses fixed 22-80 scale with fallback gaps and markers`() {
         val points = listOf(
             HrvTrendPoint(LocalDate.parse("2026-07-22"), overnightAverage = 22, sevenDayAverage = null, status = "BALANCED"),
