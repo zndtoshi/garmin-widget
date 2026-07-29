@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Dark launch/window theme to avoid a bright white flash before Compose draws. -->
     <style name="Theme.GarminWidget" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowBackground">#FF0B121A</item>
@@ -8,6 +7,8 @@
         <item name="android:statusBarColor">#FF0B121A</item>
         <item name="android:navigationBarColor">#FF0B121A</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:navigationBarDividerColor">@android:color/transparent</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
     </style>
 </resources>
