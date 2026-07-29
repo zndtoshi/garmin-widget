@@ -4,9 +4,10 @@ Private Android app and Jetpack Glance home-screen widget for the deployed Garmi
 
 ## Current state
 
-Phase 7 complete. Phase 8A backend data contract is merged, deployed, and live-verified. Phase 8B premium responsive widget UI is in progress; device polish and visual verification remain pending.
+Phase 8B premium adaptive widget UI is implemented on the device-polish branch line; visual verification across launchers remains pending. Phase 8C configuration-app dark theme is in progress on this branch.
 
-- Kotlin/Compose configuration activity
+- Kotlin/Compose configuration activity with a **forced dark** Material 3 theme (charcoal surfaces, Garmin cyan primary, purple accent)
+- Dark status/navigation bars and dark window background to avoid a white launch flash
 - Default backend: `https://garmin.zndtoshi.com`
 - Bearer token encrypted with Android Keystore (AES-GCM)
 - Latest widget payload cached in app-private storage

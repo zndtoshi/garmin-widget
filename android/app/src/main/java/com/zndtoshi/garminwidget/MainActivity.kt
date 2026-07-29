@@ -4,7 +4,9 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,6 +38,9 @@ import androidx.work.WorkManager
 import com.zndtoshi.garminwidget.data.SettingsStore
 import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.ui.refreshResultText
+import com.zndtoshi.garminwidget.ui.theme.GarminWidgetTheme
+import com.zndtoshi.garminwidget.ui.theme.appNavigationBarArgb
+import com.zndtoshi.garminwidget.ui.theme.appStatusBarArgb
 import com.zndtoshi.garminwidget.widget.GarminCompactWidgetReceiver
 import com.zndtoshi.garminwidget.widget.GarminLargeWidgetReceiver
 import com.zndtoshi.garminwidget.widget.GarminWidgetReceiver
@@ -48,10 +53,17 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(appStatusBarArgb()),
+            navigationBarStyle = SystemBarStyle.dark(appNavigationBarArgb()),
+        )
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+            GarminWidgetTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
                     ConfigurationScreen(
                         settings = SettingsStore(this),
                         onRequestWidget = ::requestWidgetPin,
@@ -82,6 +94,7 @@ private fun ConfigurationScreen(
     }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current.applicationContext
+    val scheme = MaterialTheme.colorScheme
 
     Column(
         modifier = Modifier
@@ -89,16 +102,22 @@ private fun ConfigurationScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("Garmin Widget", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Garmin Widget",
+            style = MaterialTheme.typography.headlineMedium,
+            color = scheme.primary,
+        )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Your token is encrypted with Android Keystore and is never displayed again.",
+            text = "Your token is encrypted with Android Keystore and is never displayed again.",
             style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onBackground,
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Transparency: 0% transparent to 100% opaque.",
+            text = "Transparency: 0% transparent to 100% opaque.",
             style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
@@ -121,8 +140,9 @@ private fun ConfigurationScreen(
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            "Widget background opacity: ${opacityPercent.toInt()}%",
+            text = "Widget background opacity: ${opacityPercent.toInt()}%",
             style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onBackground,
         )
         Slider(
             value = opacityPercent,
@@ -172,7 +192,11 @@ private fun ConfigurationScreen(
             Text("Save and refresh")
         }
         Spacer(Modifier.height(12.dp))
-        Text("Pin widget preset", style = MaterialTheme.typography.titleSmall)
+        Text(
+            text = "Pin widget preset",
+            style = MaterialTheme.typography.titleSmall,
+            color = scheme.secondary,
+        )
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth()) {
             Button(
@@ -191,6 +215,10 @@ private fun ConfigurationScreen(
             ) { Text("Large") }
         }
         Spacer(Modifier.height(16.dp))
-        Text(message, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
+        )
     }
 }
