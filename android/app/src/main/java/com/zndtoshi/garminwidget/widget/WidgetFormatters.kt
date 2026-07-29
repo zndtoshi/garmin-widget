@@ -184,8 +184,10 @@ internal fun batteryStressPresentation(bodyBattery: Int?, stress: Int?): Battery
         stressValue = stress?.toString() ?: "—",
     )
 
-/** Individual Sleep/HRV/Body Battery regions must not draw translucent card backgrounds. */
-internal fun healthPanelsUseCardBackground(): Boolean = false
+/** Subtle separation without the milky appearance of the earlier 0x18 alpha cards. */
+internal const val HEALTH_PANEL_CARD_COLOR = 0x0CFFFFFF
+
+internal fun healthPanelsUseCardBackground(): Boolean = true
 
 /**
  * Garmin-style panel header: icon + title on the left, optional primary value on the right.

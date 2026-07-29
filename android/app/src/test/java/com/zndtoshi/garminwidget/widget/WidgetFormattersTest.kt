@@ -50,8 +50,9 @@ class WidgetFormattersTest {
         assertFalse(spec.hasStandaloneHealthChart)
         assertFalse(spec.hasMetricsRow)
         assertFalse(spec.hasSleepLegend)
-        assertFalse(spec.usesHealthCardBackground)
-        assertFalse(healthPanelsUseCardBackground())
+        assertTrue(spec.usesHealthCardBackground)
+        assertTrue(healthPanelsUseCardBackground())
+        assertEquals(0x0C, HEALTH_PANEL_CARD_COLOR ushr 24)
         assertTrue(spec.hrvInternalBudgetFits)
         // Shorter HRV chart vs prior (health-50) formula by ~12dp at this allocation.
         val priorHrvHeight = (spec.healthRowDp - 50).toFloat().coerceIn(28f, 90f)
@@ -87,7 +88,7 @@ class WidgetFormattersTest {
             assertFalse(spec.hasStandaloneHealthChart)
             assertFalse(spec.hasMetricsRow)
             assertFalse(spec.hasSleepLegend)
-            assertFalse(spec.usesHealthCardBackground)
+            assertTrue(spec.usesHealthCardBackground)
             assertTrue("hrv budget overflow for $size", spec.hrvInternalBudgetFits)
         }
         val tall = LayoutMetrics.fromSize(DpSize(350.dp, 260.dp))

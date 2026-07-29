@@ -261,12 +261,10 @@ private fun HealthPanelHeader(icon: HealthPanelIcon, header: HealthPanelHeaderPr
                 text = header.title,
                 style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
                 maxLines = 1,
-                modifier = GlanceModifier.defaultWeight(),
             )
-        } else {
-            Spacer(modifier = GlanceModifier.defaultWeight())
         }
         if (header.trailingValue != null) {
+            Spacer(GlanceModifier.width(5.dp))
             Text(
                 text = header.trailingValue,
                 style = TextStyle(
@@ -293,7 +291,15 @@ private fun EqualPanel(
             .height(heightDp)
             .padding(horizontal = 3.dp, vertical = 2.dp),
     ) {
-        content()
+        Box(
+            contentAlignment = Alignment.TopStart,
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .cornerRadius(10.dp)
+                .background(ColorProvider(Color(HEALTH_PANEL_CARD_COLOR))),
+        ) {
+            content()
+        }
     }
 }
 
@@ -395,6 +401,8 @@ private fun ActivityStrip(
         modifier = GlanceModifier
             .fillMaxWidth()
             .height(heightDp)
+            .cornerRadius(10.dp)
+            .background(ColorProvider(Color(HEALTH_PANEL_CARD_COLOR)))
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
         Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
