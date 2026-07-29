@@ -559,6 +559,80 @@ internal fun activityIconPixelSignature(typeKey: String?, sizePx: Int = 48): Lon
     return hash
 }
 
+/** Stable draw-plan tags proving health panel icons are geometrically distinct. */
+internal enum class HealthPanelIcon { SLEEP, HRV, BODY_BATTERY }
+
+internal fun healthPanelIconDrawPlan(kind: HealthPanelIcon): List<String> = when (kind) {
+    HealthPanelIcon.SLEEP -> listOf("badge:indigo", "crescent-moon", "star-dot")
+    HealthPanelIcon.HRV -> listOf("badge:green", "heart-outline", "pulse-notch")
+    HealthPanelIcon.BODY_BATTERY -> listOf("badge:cyan", "battery-body", "bolt")
+}
+
+internal fun healthPanelIconContentDescription(kind: HealthPanelIcon): String = when (kind) {
+    HealthPanelIcon.SLEEP -> "Sleep panel icon"
+    HealthPanelIcon.HRV -> "HRV panel icon"
+    HealthPanelIcon.BODY_BATTERY -> "Body Battery panel icon"
+}
+
+internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitmap {
+    val safe = sizePx.coerceAtLeast(1)
+    val bmp = Bitmap.createBitmap(safe, safe, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val badge = when (kind) {
+        HealthPanelIcon.SLEEP -> 0xFF5C6BC0.toInt()
+        HealthPanelIcon.HRV -> 0xFF4CAF50.toInt()
+        HealthPanelIcon.BODY_BATTERY -> 0xFF4DD0E1.toInt()
+    }
+    val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = badge
+        style = Paint.Style.FILL
+    }
+    canvas.drawRoundRect(RectF(0f, 0f, safe.toFloat(), safe.toFloat()), safe * 0.22f, safe * 0.22f, fill)
+    val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = max(1.5f, safe * 0.08f)
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+    }
+    val solid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.FILL
+    }
+    when (kind) {
+        HealthPanelIcon.SLEEP -> {
+            canvas.drawCircle(safe * 0.52f, safe * 0.5f, safe * 0.28f, ink)
+            canvas.drawCircle(safe * 0.64f, safe * 0.42f, safe * 0.22f, fill)
+            canvas.drawCircle(safe * 0.28f, safe * 0.28f, safe * 0.05f, solid)
+        }
+        HealthPanelIcon.HRV -> {
+            val heart = Path()
+            heart.moveTo(safe * 0.5f, safe * 0.72f)
+            heart.cubicTo(safe * 0.2f, safe * 0.52f, safe * 0.22f, safe * 0.28f, safe * 0.5f, safe * 0.4f)
+            heart.cubicTo(safe * 0.78f, safe * 0.28f, safe * 0.8f, safe * 0.52f, safe * 0.5f, safe * 0.72f)
+            canvas.drawPath(heart, ink)
+            canvas.drawLine(safe * 0.34f, safe * 0.5f, safe * 0.44f, safe * 0.5f, ink)
+            canvas.drawLine(safe * 0.44f, safe * 0.5f, safe * 0.5f, safe * 0.38f, ink)
+            canvas.drawLine(safe * 0.5f, safe * 0.38f, safe * 0.58f, safe * 0.58f, ink)
+            canvas.drawLine(safe * 0.58f, safe * 0.58f, safe * 0.68f, safe * 0.5f, ink)
+        }
+        HealthPanelIcon.BODY_BATTERY -> {
+            canvas.drawRoundRect(RectF(safe * 0.22f, safe * 0.32f, safe * 0.72f, safe * 0.68f), safe * 0.08f, safe * 0.08f, ink)
+            canvas.drawRect(safe * 0.72f, safe * 0.42f, safe * 0.8f, safe * 0.58f, solid)
+            val bolt = Path()
+            bolt.moveTo(safe * 0.5f, safe * 0.34f)
+            bolt.lineTo(safe * 0.4f, safe * 0.52f)
+            bolt.lineTo(safe * 0.52f, safe * 0.52f)
+            bolt.lineTo(safe * 0.46f, safe * 0.68f)
+            bolt.lineTo(safe * 0.62f, safe * 0.46f)
+            bolt.lineTo(safe * 0.5f, safe * 0.46f)
+            bolt.close()
+            canvas.drawPath(bolt, solid)
+        }
+    }
+    return bmp
+}
+
 internal fun drawRefreshIconBitmap(sizePx: Int, refreshing: Boolean): Bitmap {
     val safe = sizePx.coerceAtLeast(1)
     val bmp = Bitmap.createBitmap(safe, safe, Bitmap.Config.ARGB_8888)

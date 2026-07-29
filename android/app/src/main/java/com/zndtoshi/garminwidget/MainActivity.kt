@@ -9,13 +9,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -41,8 +39,6 @@ import com.zndtoshi.garminwidget.ui.refreshResultText
 import com.zndtoshi.garminwidget.ui.theme.GarminWidgetTheme
 import com.zndtoshi.garminwidget.ui.theme.appNavigationBarArgb
 import com.zndtoshi.garminwidget.ui.theme.appStatusBarArgb
-import com.zndtoshi.garminwidget.widget.GarminCompactWidgetReceiver
-import com.zndtoshi.garminwidget.widget.GarminLargeWidgetReceiver
 import com.zndtoshi.garminwidget.widget.GarminWidgetReceiver
 import com.zndtoshi.garminwidget.widget.bumpWidgetRefreshRevision
 import com.zndtoshi.garminwidget.work.RefreshScheduler
@@ -192,27 +188,11 @@ private fun ConfigurationScreen(
             Text("Save and refresh")
         }
         Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Pin widget preset",
-            style = MaterialTheme.typography.titleSmall,
-            color = scheme.secondary,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = { onRequestWidget(GarminCompactWidgetReceiver::class.java) },
-                modifier = Modifier.weight(1f),
-            ) { Text("Compact") }
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = { onRequestWidget(GarminWidgetReceiver::class.java) },
-                modifier = Modifier.weight(1f),
-            ) { Text("Wide") }
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = { onRequestWidget(GarminLargeWidgetReceiver::class.java) },
-                modifier = Modifier.weight(1f),
-            ) { Text("Large") }
+        Button(
+            onClick = { onRequestWidget(GarminWidgetReceiver::class.java) },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Add widget to home screen")
         }
         Spacer(Modifier.height(16.dp))
         Text(

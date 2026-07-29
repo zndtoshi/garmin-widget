@@ -18,7 +18,7 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is merged, deployed, and live-verified. Phase 8B (premium responsive widget UI with Compact/Wide/Large picker presets, exact-size adaptive layout, and optional activity HR chart) is in progress; device polish and visual verification remain pending. The additive `lastActivity.heartRateTimeline` backend extension is implemented locally and is not claimed deployed until live-verified.
+Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is merged, deployed, and live-verified. Phase 8B/8D Android widget work targets a single adaptive wide two-row Glance widget (Sleep/HRV/Body Battery over activity + HR chart); device polish and visual verification remain pending. The additive `lastActivity.heartRateTimeline` backend extension is deployed and live-verified with 48 real cached points.
 
 Implemented now:
 
@@ -54,7 +54,7 @@ Not implemented yet:
 
 - Device/emulator verification of the Android app and Glance widget
 - Android release signing and final private distribution
-- Phase 8B: Device visual verification and polish for premium responsive UI
+- Phase 8B/8D: Device visual verification for the single wide two-row widget
 - Phase 8C: Approved 30-minute periodic background refresh (not screen-on-triggered)
 - Multi-process/distributed refresh locking
 - `/api/v1/widget/history` (future only)

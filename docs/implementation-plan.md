@@ -246,9 +246,9 @@ This phase proves Garmin access locally. It must not expose a Garmin-backed publ
 
 Implemented additive nullable fields for premium widgets: `sleepStages`, `hrvTrend` (bounded 7-day rolling with backfill), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48 after downsampling), and `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; null-only objects are filtered). All fields maintain `schemaVersion=1` backward compatibility. Android backward-compat JVM tests confirm original fields still parse from expanded payloads.
 
-### Phase 8B: Android premium widget UI (in progress)
+### Phase 8B/8D: Android premium widget UI (in progress)
 
-Phase 8B is in progress: three picker presets (Compact/Wide/Large), `SizeMode.Exact` adaptive layout from real allocated size, sleep legend without per-stage durations, Canvas premium visuals, optional private-safe `lastActivity.heartRateTimeline` charting, and configurable opacity. Device visual verification across launchers/resizing remains pending; the HR timeline backend extension is not claimed deployed until live-verified.
+Phase 8B/8D consolidates to **one** widget-picker entry with a fixed two-row adaptive layout (`SizeMode.Exact`): equal Sleep / HRV / Body Battery panels on top and a full-width activity card with heart-rate chart below. Sleep stage legends and intervening full-width health charts/metrics rows are removed. The HR timeline backend extension is deployed and live-verified with 48 real cached points; repaired Android layout verification across launchers/resizing remains pending.
 
 ### Phase 8C: Approved 30-minute periodic background refresh (pending)
 
