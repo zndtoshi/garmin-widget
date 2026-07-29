@@ -118,7 +118,7 @@ data class WidgetResponse(
                         sevenDayAverage = it.optIntOrNull("sevenDayAverage"),
                         status = it.optStringOrNull("status"),
                     )
-                }.takeLast(7),
+                }.takeLast(28),
                 bodyBatteryTimeline = json.optArrayObjects("bodyBatteryTimeline").mapNotNull {
                     val instant = it.optInstantOrNull("timestamp") ?: return@mapNotNull null
                     val value = it.optIntOrNull("value") ?: return@mapNotNull null

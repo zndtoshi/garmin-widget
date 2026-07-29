@@ -236,32 +236,37 @@ def _build_hrv_trend(
 ) -> list[HrvTrendPointInternal] | None:
     from datetime import timedelta
 
+    history_days = 28
     today_point = _extract_hrv_point(metric_date, today_hrv_payload)
+    cutoff = metric_date - timedelta(days=history_days - 1)
+    points_by_date = {
+        point.date: point
+        for point in (previous_trend or [])
+        if cutoff <= point.date <= metric_date
+    }
 
-    if previous_trend is not None and len(previous_trend) > 0:
-        last_date = max(p.date for p in previous_trend)
-        if last_date == metric_date:
-            trend = [p for p in previous_trend if p.date != metric_date]
-        else:
-            trend = list(previous_trend)
-        if today_point is not None:
-            trend.append(today_point)
-        cutoff = metric_date - timedelta(days=6)
-        trend = [p for p in trend if p.date >= cutoff]
-        trend.sort(key=lambda p: p.date)
-        return trend if trend else None
+    # Replace today's cached value with the freshly fetched summary. A placeholder
+    # preserves its horizontal slot when Garmin has not synced an HRV value yet.
+    points_by_date[metric_date] = today_point or HrvTrendPointInternal(date=metric_date)
 
-    trend: list[HrvTrendPointInternal] = []
-    for days_back in range(6, 0, -1):
+    # Backfill only dates absent from the persisted snapshot. Missing Garmin days
+    # are retained as placeholders so later refreshes do not repeat 27 requests.
+    for days_back in range(history_days - 1, 0, -1):
         past_date = metric_date - timedelta(days=days_back)
+        if past_date in points_by_date:
+            continue
         past_payload, status = adapter._call("get_hrv_data", past_date.isoformat())
-        if status == "ok":
-            point = _extract_hrv_point(past_date, past_payload)
-            if point is not None:
-                trend.append(point)
-    if today_point is not None:
-        trend.append(today_point)
-    return trend if trend else None
+        point = _extract_hrv_point(past_date, past_payload) if status == "ok" else None
+        points_by_date[past_date] = point or HrvTrendPointInternal(date=past_date)
+
+    trend = [points_by_date[d] for d in sorted(points_by_date)]
+    has_data = any(
+        p.overnight_average is not None
+        or p.seven_day_average is not None
+        or p.status is not None
+        for p in trend
+    )
+    return trend if has_data else None
 
 
 def _extract_body_battery_timeline(

@@ -205,7 +205,7 @@ private fun HrvPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
         if (hasRenderableHrvTrend(data.hrvTrend)) {
             HrvGraphImage(
                 points = data.hrvTrend,
-                maxPoints = 7,
+                maxPoints = 28,
                 widthDp = spec.hrvGraphWidthDp.dp,
                 heightDp = spec.hrvGraphHeightDp.dp,
                 showMidLabel = true,

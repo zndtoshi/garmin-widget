@@ -132,7 +132,7 @@ class WidgetResponse(BaseModel):
     overnight_hrv: int | None = Field(default=None, alias="overnightHrv")
     hrv_status: str | None = Field(default=None, alias="hrvStatus")
     hrv_trend: list[HrvTrendPoint] | None = Field(
-        default=None, alias="hrvTrend", max_length=7,
+        default=None, alias="hrvTrend", max_length=28,
     )
     body_battery: int | None = Field(default=None, alias="bodyBattery")
     body_battery_timeline: list[TimelinePoint] | None = Field(

@@ -508,8 +508,8 @@ def test_adapter_extracts_sleep_stages_from_complete_fixture() -> None:
 
 def test_hrv_initial_backfill() -> None:
     hrv_by_date = {}
-    for i in range(7):
-        d = date(2026, 7, 22) + timedelta(days=i)
+    for i in range(28):
+        d = date(2026, 7, 1) + timedelta(days=i)
         hrv_by_date[d.isoformat()] = {
             "hrvSummary": {
                 "lastNightAvg": 40 + i,
@@ -523,23 +523,22 @@ def test_hrv_initial_backfill() -> None:
     )
     hrv_calls = [c for c in client.calls if c[0] == "get_hrv_data"]
     assert metrics.hrv_trend is not None
-    assert len(metrics.hrv_trend) == 7
-    assert metrics.hrv_trend[0].date == date(2026, 7, 22)
+    assert len(metrics.hrv_trend) == 28
+    assert metrics.hrv_trend[0].date == date(2026, 7, 1)
     assert metrics.hrv_trend[-1].date == date(2026, 7, 28)
-    assert len(client.calls) == 15
-    assert len(hrv_calls) == 7
+    assert len(client.calls) == 36
+    assert len(hrv_calls) == 28
 
 
 def test_hrv_same_day_reuse_no_refetch() -> None:
     existing_trend = [
         HrvTrendPointInternal(
-            date=date(2026, 7, 27), overnight_average=45,
-            seven_day_average=44, status="BALANCED",
-        ),
-        HrvTrendPointInternal(
-            date=date(2026, 7, 28), overnight_average=40,
-            seven_day_average=43, status="BALANCED",
-        ),
+            date=date(2026, 7, 1) + timedelta(days=i),
+            overnight_average=40 + i % 8,
+            seven_day_average=43,
+            status="BALANCED",
+        )
+        for i in range(28)
     ]
     client = _complete_client()
     metrics = GarminMetricsAdapter(client).fetch_daily_metrics(
@@ -549,12 +548,12 @@ def test_hrv_same_day_reuse_no_refetch() -> None:
     assert len(client.calls) == 9
     assert len(hrv_calls) == 1
     assert metrics.hrv_trend is not None
-    assert len(metrics.hrv_trend) == 2
+    assert len(metrics.hrv_trend) == 28
     assert metrics.hrv_trend[-1].date == date(2026, 7, 28)
     assert metrics.hrv_trend[-1].overnight_average == 47
 
 
-def test_hrv_seven_day_trimming() -> None:
+def test_hrv_four_week_trimming() -> None:
     old_trend = [
         HrvTrendPointInternal(
             date=date(2026, 7, 20), overnight_average=30,
@@ -571,7 +570,7 @@ def test_hrv_seven_day_trimming() -> None:
     )
     assert metrics.hrv_trend is not None
     for p in metrics.hrv_trend:
-        assert p.date >= date(2026, 7, 22)
+        assert p.date >= date(2026, 7, 1)
     assert any(p.date == date(2026, 7, 28) for p in metrics.hrv_trend)
 
 
@@ -1096,7 +1095,7 @@ def test_activity_serialization_excludes_sensitive_fields() -> None:
 def test_widget_response_rejects_overlong_hrv_trend() -> None:
     trend = [
         HrvTrendPoint(date=date(2026, 7, 22) + timedelta(days=i), overnightAverage=40)
-        for i in range(8)
+        for i in range(29)
     ]
     with pytest.raises(ValidationError):
         WidgetResponse(schemaVersion=1, hrvTrend=trend)
@@ -1156,8 +1155,8 @@ def test_activity_hr_timeline_from_details_fixture() -> None:
 
 def test_activity_hr_call_budget_initial_backfill_with_details() -> None:
     hrv_by_date = {}
-    for i in range(7):
-        d = date(2026, 7, 22) + timedelta(days=i)
+    for i in range(28):
+        d = date(2026, 7, 1) + timedelta(days=i)
         hrv_by_date[d.isoformat()] = {
             "hrvSummary": {
                 "lastNightAvg": 40 + i,
@@ -1176,15 +1175,18 @@ def test_activity_hr_call_budget_initial_backfill_with_details() -> None:
     GarminMetricsAdapter(client).fetch_daily_metrics(
         date(2026, 7, 28), previous_hrv_trend=None,
     )
-    assert len(client.calls) == 16
+    assert len(client.calls) == 37
 
 
 def test_activity_hr_call_budget_same_day_with_details() -> None:
     existing_trend = [
         HrvTrendPointInternal(
-            date=date(2026, 7, 28), overnight_average=40,
-            seven_day_average=43, status="BALANCED",
-        ),
+            date=date(2026, 7, 1) + timedelta(days=i),
+            overnight_average=40,
+            seven_day_average=43,
+            status="BALANCED",
+        )
+        for i in range(28)
     ]
     activities = _load_fixture("activities_complete.json")
     assert isinstance(activities, list)
@@ -1199,24 +1201,27 @@ def test_activity_hr_call_budget_same_day_with_details() -> None:
     assert len(client.calls) == 10
 
 
-def test_activity_hr_budget_without_id_remains_15_and_9() -> None:
+def test_activity_hr_budget_without_id_remains_36_and_9() -> None:
     hrv_by_date = {
-        (date(2026, 7, 22) + timedelta(days=i)).isoformat(): {
+        (date(2026, 7, 1) + timedelta(days=i)).isoformat(): {
             "hrvSummary": {"lastNightAvg": 40 + i, "weeklyAvg": 42, "status": "BALANCED"}
         }
-        for i in range(7)
+        for i in range(28)
     }
     client = _complete_client(hrv_by_date=hrv_by_date)
     GarminMetricsAdapter(client).fetch_daily_metrics(
         date(2026, 7, 28), previous_hrv_trend=None,
     )
-    assert len(client.calls) == 15
+    assert len(client.calls) == 36
 
     existing = [
         HrvTrendPointInternal(
-            date=date(2026, 7, 28), overnight_average=40,
-            seven_day_average=43, status="BALANCED",
-        ),
+            date=date(2026, 7, 1) + timedelta(days=i),
+            overnight_average=40,
+            seven_day_average=43,
+            status="BALANCED",
+        )
+        for i in range(28)
     ]
     client2 = _complete_client()
     GarminMetricsAdapter(client2).fetch_daily_metrics(

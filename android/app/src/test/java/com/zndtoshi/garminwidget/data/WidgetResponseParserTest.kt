@@ -53,7 +53,7 @@ class WidgetResponseParserTest {
     fun enforces_defensive_bounds_and_filters_invalid_values() {
         val json = JSONObject(COMPLETE_PAYLOAD)
         val longTrend = JSONArray()
-        repeat(12) {
+        repeat(36) {
             longTrend.put(JSONObject().put("date", "2026-07-${10 + it}").put("overnightAverage", it))
         }
         val longTimeline = JSONArray()
@@ -80,7 +80,7 @@ class WidgetResponseParserTest {
                 .put("durationSeconds", 1200),
         )
         val response = WidgetResponseParser.parse(json.toString())
-        assertEquals(7, response.hrvTrend.size)
+        assertEquals(28, response.hrvTrend.size)
         assertTrue(response.bodyBatteryTimeline.size <= 48)
         assertTrue(response.stressTimeline.size <= 48)
         assertTrue(response.bodyBatteryTimeline.all { it.value in 0..100 })

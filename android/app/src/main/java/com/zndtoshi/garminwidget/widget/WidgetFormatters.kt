@@ -33,7 +33,7 @@ internal fun formatStageLabel(name: String, seconds: Int?): String =
 internal fun widgetRendersSleepStageLegend(): Boolean = false
 
 internal fun hasRenderableHrvTrend(points: List<HrvTrendPoint>): Boolean =
-    pickRecentHrvPoints(points, 7).count { hrvPlotValue(it) != null } >= 2
+    pickRecentHrvPoints(points, 28).count { hrvPlotValue(it) != null } >= 2
 
 internal fun mapHrvStatusToMarker(status: String?): HrvMarkerKind {
     return when (status?.trim()?.uppercase(Locale.US)) {

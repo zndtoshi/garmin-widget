@@ -460,39 +460,12 @@ internal fun drawHrvGraphBitmap(
     }
     canvas.drawText("22", 2f, min(geometry.heightPx - 1f, geometry.yAtMin + labelPaint.textSize * 0.15f), labelPaint)
 
-    val plotted = geometry.slots.filter { it.y != null }
-    if (plotted.size >= 2) {
-        val path = Path()
-        plotted.forEachIndexed { i, slot ->
-            if (i == 0) path.moveTo(slot.x, slot.y!!) else path.lineTo(slot.x, slot.y!!)
-        }
-        canvas.drawPath(
-            path,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = WidgetPalette.battery
-                style = Paint.Style.STROKE
-                strokeWidth = batteryCurveStrokeWidthPx((geometry.plotBottom - geometry.plotTop).roundToInt())
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            },
-        )
-    }
-
-    val markerSize = (geometry.heightPx * 0.16f).coerceIn(9f, 16f)
+    val markerBaseSize = (geometry.heightPx * 0.16f).coerceIn(9f, 16f)
+    val slotSpacing = geometry.slots.zipWithNext { a, b -> b.x - a.x }.minOrNull()
+    val markerSize = slotSpacing?.let { min(markerBaseSize, it * 1.3f) } ?: markerBaseSize
     for (slot in geometry.slots) {
         val y = slot.y
-        if (y == null) {
-            canvas.drawCircle(
-                slot.x,
-                (geometry.plotTop + geometry.plotBottom) / 2f,
-                markerSize * 0.18f,
-                Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = WidgetPalette.hrvGray
-                    style = Paint.Style.FILL
-                },
-            )
-            continue
-        }
+        if (y == null) continue
         drawHrvMarkerOnCanvas(canvas, slot.marker, slot.x, y, markerSize)
     }
     return bmp
@@ -509,7 +482,7 @@ private fun drawHrvMarkerOnCanvas(canvas: Canvas, kind: HrvMarkerKind, cx: Float
     val half = size / 2f
     when (kind) {
         HrvMarkerKind.CIRCLE -> canvas.drawCircle(cx, cy, half * 0.7f, paint)
-        HrvMarkerKind.SQUARE -> canvas.drawRect(cx - half * 0.6f, cy - half * 0.6f, cx + half * 0.6f, cy + half * 0.6f, paint)
+        HrvMarkerKind.SQUARE -> canvas.drawRect(cx - half * 0.7f, cy - half * 0.7f, cx + half * 0.7f, cy + half * 0.7f, paint)
         HrvMarkerKind.TRIANGLE -> {
             val path = Path()
             path.moveTo(cx, cy - half * 0.75f)
