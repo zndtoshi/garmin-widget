@@ -65,7 +65,7 @@ class WidgetFormattersTest {
             LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
             spec.healthPanelContentHeightDp - (spec.panelChartHeightDp.roundToInt() + LayoutMetrics.BODY_BATTERY_HEADER_DP),
         )
-        assertEquals(22f, sleepScoreFontSp(spec.widthDp), 0.01f)
+        assertEquals(26f, sleepScoreFontSp(spec.widthDp), 0.01f)
         assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
         val sleep = sleepRingContentPresentation()
         assertFalse(sleep.showTitle)
@@ -128,12 +128,12 @@ class WidgetFormattersTest {
 
     @Test
     fun `sleep score typography grows at wide allocation`() {
-        assertEquals(22f, sleepScoreFontSp(438f), 0.01f)
+        assertEquals(26f, sleepScoreFontSp(438f), 0.01f)
         assertTrue(sleepScoreFontSp(438f) > sleepScoreFontSp(300f))
         assertTrue(sleepScoreFontSp(300f) >= 13f)
         assertTrue(sleepScoreFontSp(200f) >= 13f)
         assertTrue(sleepDurationFontSp(438f) < sleepScoreFontSp(438f))
-        assertEquals(10f, sleepDurationFontSp(438f), 0.01f)
+        assertEquals(12f, sleepDurationFontSp(438f), 0.01f)
     }
 
     @Test

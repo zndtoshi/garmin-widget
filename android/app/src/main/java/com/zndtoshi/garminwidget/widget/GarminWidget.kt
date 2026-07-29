@@ -330,7 +330,7 @@ private fun SleepRing(
             Text(
                 text = formatSleepDuration(data.sleepDurationSeconds),
                 style = TextStyle(
-                    color = ColorProvider(Color(0xFF9FB5BB)),
+                    color = ColorProvider(Color.White),
                     fontSize = durationFontSp.sp,
                 ),
                 maxLines = 1,
