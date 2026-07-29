@@ -18,7 +18,7 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Android Phase 7 is in progress with a buildable configuration app and initial Glance widget.
+Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is implemented and verified locally but **not yet deployed**; it must be merged and verified on Render before being considered live.
 
 Implemented now:
 
@@ -33,21 +33,29 @@ Implemented now:
 - Safe centralized exception handling
 - Garmin authentication/session lifecycle and filesystem token store
 - Metric adapter, normalization, and public `WidgetResponse` model
+- **Phase 8A expanded data contract** — additive nullable fields for premium widgets:
+  - `sleepStages` (deep/light/REM/awake durations, negative values filtered)
+  - `hrvTrend` (rolling 7-day, oldest-first, bounded to 7 entries max; initial backfill then same-day reuse)
+  - `bodyBatteryTimeline` and `stressTimeline` (intraday points, sorted/deduped, values 0–100, max 48 after downsampling)
+  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled)
+  - All new fields are nullable and backward-compatible with `schemaVersion=1`
 - Atomic latest-widget snapshot persistence and refresh coordination
 - Render-oriented container entrypoint (`PORT`, one worker; proxy headers disabled)
 - Root `render.yaml` Blueprint and [`docs/render-deployment.md`](docs/render-deployment.md) runbook
 - Local CLI auth/metrics checks
 - Local tests, `uv` lockfile, Dockerfile, backend CI (including Docker build validation)
 - Live Render deployment at `https://garmin.zndtoshi.com`
-- Initial Kotlin/Jetpack Glance Android app with encrypted bearer-token storage
+- Kotlin/Jetpack Glance Android app with encrypted bearer-token storage
 - Local widget payload cache, manual WorkManager refresh, and Garmin Connect launch action
-- Android unit tests, lint validation, Gradle wrapper, and debug APK build
+- Glance-managed observable state for deterministic UI updates
+- Android unit tests (including expanded-response backward-compat), lint validation, Gradle wrapper, and debug APK build
 
 Not implemented yet:
 
 - Device/emulator verification of the Android app and Glance widget
 - Android release signing and final private distribution
-- Responsive/widget-state polish from Phase 8
+- Phase 8B: Android premium widget UI consuming expanded fields
+- Phase 8C: Approved 30-minute periodic background refresh (not screen-on-triggered)
 - Multi-process/distributed refresh locking
 - `/api/v1/widget/history` (future only)
 
@@ -124,6 +132,10 @@ Version one does **not** store long-term health history.
 - Store that value only in ignored local `.env`, Render secrets later, and Android secure storage later—never in source control, chat, screenshots, logs, or example files.
 - Production rejects missing, empty, known-placeholder, and short (`< 32` character) widget bearer tokens without echoing the token value.
 
+## HRV trend and call budget
+
+The `hrvTrend` field is a bounded rolling 7-day window. On initial refresh (no cached snapshot or no existing trend), the adapter backfills up to 6 historical HRV calls plus the current day's call, for a total of up to **15 Garmin endpoint calls** (9 standard + 6 historical HRV). On subsequent same-day refreshes where a cached trend exists, only the current day's HRV is re-fetched, keeping the total to **9 Garmin endpoint calls**.
+
 ## Refresh and cooldown rules
 
 - `GET /health` must not contact Garmin and must not read persistent storage.
@@ -162,8 +174,13 @@ Version-one public JSON uses camelCase and explicit nullability for metrics that
 | `hrvStatus` | string \| null | Example: `BALANCED` |
 | `bodyBattery` | number \| null | Body Battery value |
 | `restingHeartRate` | number \| null | Resting HR |
+| `sleepStages` | object \| null | `{deepSeconds, lightSeconds, remSeconds, awakeSeconds}` (all nullable ints) |
+| `hrvTrend` | array \| null | Rolling 7-day trend, oldest first. Each: `{date, overnightAverage, sevenDayAverage, status}` |
+| `bodyBatteryTimeline` | array \| null | Intraday points (max 48): `{timestamp, value}` |
 | `stress` | number \| null | Stress value |
+| `stressTimeline` | array \| null | Intraday points (max 48): `{timestamp, value}` |
 | `trainingReadiness` | number \| null | Training readiness |
+| `lastActivity` | object \| null | Most recent activity with name, typeKey, startedAt, duration, distance, HR, etc. |
 | `garminSyncAt` | string \| null | ISO-8601 UTC timestamp |
 | `refreshedAt` | string \| null | ISO-8601 UTC timestamp |
 | `stale` | boolean | Indicates stale cached data |

@@ -2,18 +2,26 @@
 
 Private Android app and Jetpack Glance home-screen widget for the deployed Garmin backend.
 
-## Current Phase 7 increment
+## Current state
+
+Phase 7 complete. Phase 8A backend data contract is implemented but not yet deployed.
 
 - Kotlin/Compose configuration activity
 - Default backend: `https://garmin.zndtoshi.com`
 - Bearer token encrypted with Android Keystore (AES-GCM)
 - Latest widget payload cached in app-private storage
-- Responsive Glance widget with primary daily metrics
-- Manual refresh through one deduplicated WorkManager job
+- Responsive Glance widget with primary daily metrics and `PreferencesGlanceStateDefinition` observable state
+- Manual refresh through one deduplicated WorkManager job (no network constraint)
 - Cached-data preservation across network and authentication failures
 - Widget-body launch into Garmin Connect, with browser fallback
+- **Backend-first additive compatibility**: the existing v0.1.0 Android parser ignores unknown JSON fields from the expanded Phase 8A response. An Android JVM test confirms original fields parse correctly from the expanded payload.
 
 The app never stores Garmin credentials and never contacts Garmin directly.
+
+### Upcoming work
+
+- **Phase 8B**: Premium widget UI consuming expanded fields (`sleepStages`, `hrvTrend`, `bodyBatteryTimeline`, `stressTimeline`, `lastActivity`)
+- **Phase 8C**: Approved 30-minute periodic background refresh via WorkManager
 
 ## Build prerequisites
 

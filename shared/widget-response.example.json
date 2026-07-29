@@ -3,12 +3,83 @@
   "date": "2026-07-28",
   "sleepScore": 84,
   "sleepDurationSeconds": 22620,
+  "sleepStages": {
+    "deepSeconds": 5400,
+    "lightSeconds": 10800,
+    "remSeconds": 4200,
+    "awakeSeconds": 2220
+  },
   "overnightHrv": 47,
   "hrvStatus": "BALANCED",
+  "hrvTrend": [
+    {
+      "date": "2026-07-22",
+      "overnightAverage": 42,
+      "sevenDayAverage": 44,
+      "status": "BALANCED"
+    },
+    {
+      "date": "2026-07-23",
+      "overnightAverage": 39,
+      "sevenDayAverage": 43,
+      "status": "UNBALANCED"
+    },
+    {
+      "date": "2026-07-24",
+      "overnightAverage": 45,
+      "sevenDayAverage": 44,
+      "status": "BALANCED"
+    },
+    {
+      "date": "2026-07-25",
+      "overnightAverage": 50,
+      "sevenDayAverage": 45,
+      "status": "BALANCED"
+    },
+    {
+      "date": "2026-07-26",
+      "overnightAverage": 48,
+      "sevenDayAverage": 45,
+      "status": "BALANCED"
+    },
+    {
+      "date": "2026-07-27",
+      "overnightAverage": 44,
+      "sevenDayAverage": 45,
+      "status": "BALANCED"
+    },
+    {
+      "date": "2026-07-28",
+      "overnightAverage": 47,
+      "sevenDayAverage": 46,
+      "status": "BALANCED"
+    }
+  ],
   "bodyBattery": 72,
+  "bodyBatteryTimeline": [
+    {"timestamp": "2026-07-28T00:00:00Z", "value": 50},
+    {"timestamp": "2026-07-28T04:00:00Z", "value": 72}
+  ],
   "restingHeartRate": 49,
   "stress": 18,
+  "stressTimeline": null,
   "trainingReadiness": 81,
+  "lastActivity": {
+    "name": "Morning Run",
+    "typeKey": "running",
+    "startedAt": "2026-07-28T05:00:00Z",
+    "durationSeconds": 2400,
+    "movingDurationSeconds": 2350,
+    "distanceMeters": 5120.5,
+    "calories": 380,
+    "averageHeartRate": 148,
+    "maxHeartRate": 172,
+    "elevationGainMeters": 45.0,
+    "averageSpeedMetersPerSecond": 2.13,
+    "aerobicTrainingEffect": 3.2,
+    "anaerobicTrainingEffect": 1.1,
+    "trainingLoad": 85.0
+  },
   "garminSyncAt": "2026-07-28T05:35:00Z",
   "refreshedAt": "2026-07-28T05:36:04Z",
   "stale": false,

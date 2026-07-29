@@ -88,22 +88,26 @@ class FakeMetricsClient:
         *,
         sleep: object | None = None,
         hrv: object | None = None,
+        hrv_by_date: dict[str, object] | None = None,
         body_battery: object | None = None,
         rhr: object | None = None,
         stress: object | None = None,
         stats: object | None = None,
         training_readiness: object | None = None,
         device_last_used: object | None = None,
+        activities: object | None = None,
         errors: dict[str, Exception] | None = None,
     ) -> None:
         self.sleep = sleep
         self.hrv = hrv
+        self.hrv_by_date = hrv_by_date or {}
         self.body_battery = body_battery
         self.rhr = rhr
         self.stress = stress
         self.stats = stats
         self.training_readiness = training_readiness
         self.device_last_used = device_last_used
+        self.activities = activities
         self.errors = errors or {}
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
@@ -111,6 +115,8 @@ class FakeMetricsClient:
         return self._invoke("get_sleep_data", self.sleep, cdate)
 
     def get_hrv_data(self, cdate: str) -> object:
+        if cdate in self.hrv_by_date:
+            return self._invoke("get_hrv_data", self.hrv_by_date[cdate], cdate)
         return self._invoke("get_hrv_data", self.hrv, cdate)
 
     def get_body_battery(
@@ -132,6 +138,9 @@ class FakeMetricsClient:
 
     def get_device_last_used(self) -> object:
         return self._invoke("get_device_last_used", self.device_last_used)
+
+    def get_activities(self, start: int, limit: int) -> object:
+        return self._invoke("get_activities", self.activities, start, limit)
 
     def _invoke(self, name: str, payload: object, *args: object) -> object:
         self.calls.append((name, args))

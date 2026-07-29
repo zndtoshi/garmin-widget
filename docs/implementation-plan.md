@@ -180,7 +180,7 @@ This phase proves Garmin access locally. It must not expose a Garmin-backed publ
 
 ### Progress note
 
-Repository and deployment **preparation** are complete: Render Blueprint, single-worker container entrypoint, CI Docker build validation (no push), and this runbook exist. Still pending operator work: live Render service creation, persistent-disk attach in production, Garmin session bootstrap on Render, private end-to-end verification, and custom domain/DNS. Do not treat Phase 6 as finished until those live steps succeed.
+**Phase 6 is verified and complete.** The Render service is deployed at `https://garmin.zndtoshi.com` with persistent disk, custom domain, DNS, TLS, Garmin session bootstrap, and private end-to-end verification all confirmed.
 
 ### Work
 
@@ -210,7 +210,7 @@ Repository and deployment **preparation** are complete: Render Blueprint, single
 
 ### Progress note
 
-The first Phase 7 increment is implemented: Kotlin/Compose configuration UI, Android Keystore-encrypted bearer token, typed widget payload parsing, app-private payload cache, responsive Glance widget, deduplicated manual WorkManager refresh, Garmin Connect launch fallback, unit tests, lint, and a successful debug APK build. Device/emulator interaction verification, release signing, and final private distribution remain pending.
+**Phase 7 is verified and complete.** Implemented: Kotlin/Compose configuration UI, Android Keystore-encrypted bearer token, typed widget payload parsing, app-private payload cache, responsive Glance widget with `PreferencesGlanceStateDefinition` observable state, deduplicated manual WorkManager refresh (no network constraint), Garmin Connect launch with fallback, unit tests, lint, and debug APK build. Device/emulator interaction verification, release signing, and final private distribution remain pending for Phase 8.
 
 ### Work
 
@@ -241,6 +241,18 @@ The first Phase 7 increment is implemented: Kotlin/Compose configuration UI, And
 - The widget behaves correctly across supported Android versions and common launcher conditions.
 
 ## Phase 8: Polish and reliability
+
+### Phase 8A: Expanded backend data contract (complete, not yet deployed)
+
+Implemented additive nullable fields for premium widgets: `sleepStages`, `hrvTrend` (bounded 7-day rolling with backfill), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48 after downsampling), and `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; null-only objects are filtered). All fields maintain `schemaVersion=1` backward compatibility. Android backward-compat JVM test confirms v0.1.0 parser reads expanded responses without error. Must be merged and verified on Render before treating as deployed.
+
+### Phase 8B: Android premium widget UI (pending)
+
+Consume expanded fields in the Glance widget UI.
+
+### Phase 8C: Approved 30-minute periodic background refresh (pending)
+
+Implement a periodic background refresh using WorkManager with a 30-minute minimum interval. This is the approved scope — not screen-on-triggered refresh, which is unreliable and was explicitly rejected.
 
 ### Work
 

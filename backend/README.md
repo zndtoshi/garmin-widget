@@ -2,7 +2,7 @@
 
 Private FastAPI service for the `garmin-widget` Android client.
 
-**Status:** Phase 6 deployment configuration is prepared (Render Blueprint, single-worker container entrypoint, runbook). Authenticated widget HTTP API is implemented. No live Render deployment or custom domain has been completed. Android is not started. First deployment must use one worker/instance with a persistent disk at `/var/data`.
+**Status:** Backend deployed and verified at `https://garmin.zndtoshi.com`. Phase 8A expanded data contract implemented locally (not yet deployed). Single worker/instance with persistent disk at `/var/data`.
 
 ## Implemented now
 
@@ -19,6 +19,8 @@ Private FastAPI service for the `garmin-widget` Android client.
 - Local Garmin authentication/session lifecycle under `app/garmin/`
 - Filesystem session persistence under `DATA_DIR/garmin/garmin_tokens.json`
 - Garmin metrics adapter + internal/public models + normalization
+- **Expanded response contract (Phase 8A)**: additive nullable fields — `sleepStages`, `hrvTrend` (bounded 7-day, initial backfill + same-day reuse), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48), `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; local-only timestamps are ignored). All backward-compatible with `schemaVersion=1`.
+- **Call budget**: initial expanded refresh ≤ 15 Garmin calls (9 standard + up to 6 historical HRV); ordinary same-day refresh = 9 calls (1 current HRV, no historical refetch).
 - Filesystem persistence for one atomic latest-widget snapshot under `DATA_DIR/widget/`
 - Process-scoped refresh orchestration with cooldown, lock/deduplication, and stale-cache fallback
 - Render-compatible container entrypoint (`/app/.venv/bin/python -m app.server`) honoring `PORT` with one Uvicorn worker and proxy headers disabled

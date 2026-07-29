@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from app.api.auth import tokens_match
 from app.core.config import clear_settings_cache
 from app.main import create_app
-from app.models.domain import DailyMetrics
+from app.models.domain import DailyMetrics, HrvTrendPointInternal
 from app.models.widget import RefreshStatus, WidgetResponse
 from app.persistence.coordinator import clear_refresh_locks
 from app.persistence.models import WidgetSnapshot
@@ -80,7 +80,12 @@ class FakeMetricsProvider:
         self.block_until: threading.Event | None = None
         self.started: threading.Event | None = None
 
-    def fetch_daily_metrics(self, metric_date: date) -> DailyMetrics:
+    def fetch_daily_metrics(
+        self,
+        metric_date: date,
+        *,
+        previous_hrv_trend: list[HrvTrendPointInternal] | None = None,
+    ) -> DailyMetrics:
         self.calls.append(metric_date)
         if self.started is not None:
             self.started.set()

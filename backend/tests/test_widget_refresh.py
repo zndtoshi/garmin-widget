@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from app.models.domain import DailyMetrics
+from app.models.domain import (
+    DailyMetrics,
+    HrvTrendPointInternal,
+    LastActivityInternal,
+    SleepStagesInternal,
+    TimelinePointInternal,
+)
 from app.models.widget import RefreshStatus, WidgetResponse
 from app.persistence.coordinator import clear_refresh_locks
 from app.persistence.errors import (
@@ -97,8 +103,14 @@ class FakeMetricsProvider:
         self.error = error
         self.calls: list[date] = []
 
-    def fetch_daily_metrics(self, metric_date: date) -> DailyMetrics:
+    def fetch_daily_metrics(
+        self,
+        metric_date: date,
+        *,
+        previous_hrv_trend: list[HrvTrendPointInternal] | None = None,
+    ) -> DailyMetrics:
         self.calls.append(metric_date)
+        self.last_previous_hrv_trend = previous_hrv_trend
         if self.error is not None:
             raise self.error
         return self.payload.model_copy(update={"metric_date": metric_date})
@@ -523,7 +535,12 @@ def test_independent_services_share_process_lock_for_same_data_dir(
     shared_calls: list[date] = []
 
     class BlockingProvider(FakeMetricsProvider):
-        def fetch_daily_metrics(self, metric_date: date) -> DailyMetrics:
+        def fetch_daily_metrics(
+            self,
+            metric_date: date,
+            *,
+            previous_hrv_trend: list[HrvTrendPointInternal] | None = None,
+        ) -> DailyMetrics:
             shared_calls.append(metric_date)
             started_fetch.set()
             assert release.wait(timeout=5)
@@ -674,3 +691,166 @@ def test_system_clock_returns_aware_utc() -> None:
     value = SystemClock().now()
     assert value.tzinfo is not None
     assert value.utcoffset() == timedelta(0)
+
+
+# --- HRV cache/call-budget integration ---
+
+
+def _expanded_payload(
+    *,
+    refreshed_at: datetime,
+    hrv_trend: list[HrvTrendPointInternal] | None = None,
+    body_battery_timeline: list[TimelinePointInternal] | None = None,
+    stress_timeline: list[TimelinePointInternal] | None = None,
+    last_activity: LastActivityInternal | None = None,
+    sleep_stages: SleepStagesInternal | None = None,
+) -> DailyMetrics:
+    return DailyMetrics(
+        metric_date=date(2026, 7, 28),
+        sleep_score=84,
+        sleep_duration_seconds=22620,
+        sleep_stages=sleep_stages,
+        overnight_hrv=47,
+        hrv_status="BALANCED",
+        hrv_trend=hrv_trend,
+        body_battery=72,
+        body_battery_timeline=body_battery_timeline,
+        resting_heart_rate=49,
+        stress=18,
+        stress_timeline=stress_timeline,
+        training_readiness=81,
+        last_activity=last_activity,
+        garmin_sync_at=datetime(2026, 7, 28, 5, 35, tzinfo=UTC),
+    )
+
+
+def _sample_hrv_trend() -> list[HrvTrendPointInternal]:
+    return [
+        HrvTrendPointInternal(
+            date=date(2026, 7, 22) + timedelta(days=i),
+            overnight_average=40 + i,
+            seven_day_average=42 + i,
+            status="BALANCED",
+        )
+        for i in range(7)
+    ]
+
+
+def test_existing_snapshot_hrv_trend_passed_to_provider(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 28, 6, 0, tzinfo=UTC)
+    trend = _sample_hrv_trend()
+    provider = FakeMetricsProvider(
+        payload=_expanded_payload(refreshed_at=now, hrv_trend=trend),
+    )
+    from app.garmin.normalize import normalize_daily_metrics
+
+    expanded_response = normalize_daily_metrics(
+        _expanded_payload(refreshed_at=now - timedelta(seconds=120), hrv_trend=trend),
+        refreshed_at=now - timedelta(seconds=120),
+    )
+    repo = FilesystemWidgetSnapshotRepository(tmp_path)
+    snapshot = WidgetSnapshot(
+        persistenceFormatVersion=1,
+        lastSuccessfulRefreshAt=now - timedelta(seconds=120),
+        payload=expanded_response,
+    )
+    repo.save(snapshot)
+
+    service = _service(
+        tmp_path, clock=FakeClock(now), provider=provider, cooldown_seconds=60,
+    )
+    service.refresh()
+
+    assert provider.last_previous_hrv_trend is not None
+    assert len(provider.last_previous_hrv_trend) == 7
+    assert provider.last_previous_hrv_trend[0].date == date(2026, 7, 22)
+
+
+def test_old_pre_8a_snapshot_triggers_safe_backfill(tmp_path: Path) -> None:
+    """A snapshot with no HRV trend passes None to the provider."""
+    now = datetime(2026, 7, 28, 6, 0, tzinfo=UTC)
+    provider = FakeMetricsProvider()
+    repo = FilesystemWidgetSnapshotRepository(tmp_path)
+    repo.save(_sample_snapshot(refreshed_at=now - timedelta(seconds=120)))
+
+    service = _service(
+        tmp_path, clock=FakeClock(now), provider=provider, cooldown_seconds=60,
+    )
+    service.refresh()
+
+    assert provider.last_previous_hrv_trend is None
+
+
+def test_expanded_snapshot_survives_reload(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 28, 6, 0, tzinfo=UTC)
+    trend = _sample_hrv_trend()
+    bb_timeline = [
+        TimelinePointInternal(
+            timestamp=datetime(2026, 7, 28, 0, 0, tzinfo=UTC), value=50,
+        ),
+    ]
+    stress_tl = [
+        TimelinePointInternal(
+            timestamp=datetime(2026, 7, 28, 1, 0, tzinfo=UTC), value=15,
+        ),
+    ]
+    activity = LastActivityInternal(
+        name="Morning Run", type_key="running",
+        started_at=datetime(2026, 7, 28, 5, 0, tzinfo=UTC),
+        duration_seconds=2400,
+    )
+    stages = SleepStagesInternal(
+        deep_seconds=5400, light_seconds=10800,
+        rem_seconds=4200, awake_seconds=2220,
+    )
+    provider = FakeMetricsProvider(
+        payload=_expanded_payload(
+            refreshed_at=now,
+            hrv_trend=trend,
+            body_battery_timeline=bb_timeline,
+            stress_timeline=stress_tl,
+            last_activity=activity,
+            sleep_stages=stages,
+        ),
+    )
+
+    service1 = _service(
+        tmp_path, clock=FakeClock(now), provider=provider, cooldown_seconds=60,
+    )
+    result1 = service1.refresh()
+    assert result1.refresh_status == RefreshStatus.SUCCESS
+
+    repo = FilesystemWidgetSnapshotRepository(tmp_path)
+    loaded = repo.load()
+
+    assert loaded.payload.hrv_trend is not None
+    assert len(loaded.payload.hrv_trend) == 7
+    assert loaded.payload.body_battery_timeline is not None
+    assert loaded.payload.stress_timeline is not None
+    assert loaded.payload.last_activity is not None
+    assert loaded.payload.last_activity.name == "Morning Run"
+    assert loaded.payload.sleep_stages is not None
+    assert loaded.payload.sleep_stages.deep_seconds == 5400
+
+    service2 = _service(
+        tmp_path,
+        clock=FakeClock(now + timedelta(seconds=10)),
+        provider=FakeMetricsProvider(error=RuntimeError("unused")),
+        cooldown_seconds=60,
+    )
+    latest = service2.get_latest()
+    assert latest.hrv_trend is not None
+    assert latest.last_activity is not None
+
+
+def test_refresh_success_json_contract(tmp_path: Path) -> None:
+    now = datetime(2026, 7, 28, 6, 0, tzinfo=UTC)
+    provider = FakeMetricsProvider()
+    service = _service(
+        tmp_path, clock=FakeClock(now), provider=provider, cooldown_seconds=60,
+    )
+    result = service.refresh()
+    dumped = result.model_dump(by_alias=True, mode="json")
+    assert dumped["schemaVersion"] == 1
+    assert dumped["refreshStatus"] == "SUCCESS"
+    assert dumped["sleepScore"] == 84

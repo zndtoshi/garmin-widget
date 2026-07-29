@@ -5,7 +5,7 @@ from datetime import date
 from app.core.config import Settings
 from app.garmin.adapter import GarminMetricsAdapter
 from app.garmin.session import GarminSessionManager
-from app.models.domain import DailyMetrics
+from app.models.domain import DailyMetrics, HrvTrendPointInternal
 
 
 class SessionBackedMetricsProvider:
@@ -21,6 +21,13 @@ class SessionBackedMetricsProvider:
             settings=settings
         )
 
-    def fetch_daily_metrics(self, metric_date: date) -> DailyMetrics:
+    def fetch_daily_metrics(
+        self,
+        metric_date: date,
+        *,
+        previous_hrv_trend: list[HrvTrendPointInternal] | None = None,
+    ) -> DailyMetrics:
         client = self._session_manager.initialize_session()
-        return GarminMetricsAdapter(client).fetch_daily_metrics(metric_date)
+        return GarminMetricsAdapter(client).fetch_daily_metrics(
+            metric_date, previous_hrv_trend=previous_hrv_trend,
+        )

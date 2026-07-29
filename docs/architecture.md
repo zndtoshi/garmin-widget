@@ -2,7 +2,7 @@
 
 Private personal-use garmin-widget system. Concise diagrams and component boundaries. Spec details live in [PROJECT.md](../PROJECT.md).
 
-**Status:** documentation only — no production backend or Android code yet.
+**Status:** Backend Phases 1–6 deployed and verified. Phase 7 Android app and widget complete. Phase 8A expanded data contract implemented locally (not yet deployed to Render).
 
 ## System architecture
 
@@ -197,6 +197,17 @@ flowchart LR
 | `GET` | `/api/v1/widget/latest` | Yes — bearer auth; cache only |
 | `POST` | `/api/v1/widget/refresh` | Yes — bearer auth; cooldown, lock, Garmin, fallback |
 | `GET` | `/api/v1/widget/history` | **No** — future only; out of scope for v1 |
+
+## Expanded normalized snapshot (Phase 8A)
+
+The widget snapshot now includes additive nullable premium fields alongside the original metrics. All new fields use `schemaVersion=1` and are backward-compatible:
+
+- **`sleepStages`**: deep/light/REM/awake durations (negative values rejected at extraction).
+- **`hrvTrend`**: bounded rolling 7-day window (max 7 entries, oldest-first). Initial backfill fetches up to 6 historical HRV calls; same-day refreshes reuse the cached trend and fetch only the current day.
+- **`bodyBatteryTimeline`** / **`stressTimeline`**: intraday sorted/deduped points with values clamped to 0–100 and downsampled to max 48 entries. Duplicate timestamps prefer the last valid sample.
+- **`lastActivity`**: most recent activity. `startTimeGMT` is the trusted UTC source and may be parsed from either a naive GMT string or an offset-bearing timestamp. `startTimeLocal` is ignored when GMT is absent, so local-only timestamps are never mislabeled with `Z`. Activities with no recognized public fields return `null`.
+
+The snapshot persists the complete expanded payload including trend/timelines/activity, surviving repository reload and service restarts.
 
 ## Operational risk
 

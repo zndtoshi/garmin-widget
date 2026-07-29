@@ -1,0 +1,18 @@
+[
+  {
+    "activityName": "Morning Run",
+    "activityType": {"typeKey": "running"},
+    "startTimeGMT": "2026-07-28T05:00:00.000Z",
+    "duration": 2400,
+    "movingDuration": 2350,
+    "distance": 5120.5,
+    "calories": 380,
+    "averageHR": 148,
+    "maxHR": 172,
+    "elevationGain": 45.0,
+    "averageSpeed": 2.13,
+    "aerobicTrainingEffect": 3.2,
+    "anaerobicTrainingEffect": 1.1,
+    "activityTrainingLoad": 85.0
+  }
+]

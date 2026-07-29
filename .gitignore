@@ -131,6 +131,10 @@ garmin_tokens.json
 # --- Render / local persistent data directories ---
 **/data/
 !**/data/.gitkeep
+!android/app/src/main/java/com/zndtoshi/garminwidget/data/
+!android/app/src/main/java/com/zndtoshi/garminwidget/data/**
+!android/app/src/test/java/com/zndtoshi/garminwidget/data/
+!android/app/src/test/java/com/zndtoshi/garminwidget/data/**
 **/persistent/
 **/persist/
 .render-data/

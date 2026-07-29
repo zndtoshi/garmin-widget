@@ -1,3 +1,8 @@
 {
-  "overallStressLevel": 18
+  "overallStressLevel": 18,
+  "stressValuesArray": [
+    [1753660800000, 15],
+    [1753664400000, 22],
+    [1753668000000, 18]
+  ]
 }

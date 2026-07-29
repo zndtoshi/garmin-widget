@@ -8,7 +8,7 @@ from typing import Protocol
 
 from app.garmin.dates import calendar_date_for_timezone
 from app.garmin.normalize import normalize_daily_metrics
-from app.models.domain import DailyMetrics
+from app.models.domain import DailyMetrics, HrvTrendPointInternal
 from app.models.widget import RefreshStatus, WidgetResponse
 from app.persistence.coordinator import refresh_lock_for
 from app.persistence.errors import (
@@ -28,7 +28,12 @@ class Clock(Protocol):
 
 
 class MetricsProvider(Protocol):
-    def fetch_daily_metrics(self, metric_date: date) -> DailyMetrics: ...
+    def fetch_daily_metrics(
+        self,
+        metric_date: date,
+        *,
+        previous_hrv_trend: list[HrvTrendPointInternal] | None = None,
+    ) -> DailyMetrics: ...
 
 
 NormalizeFn = Callable[..., WidgetResponse]
@@ -126,7 +131,10 @@ class WidgetRefreshService:
 
     def _live_refresh(self, now: datetime) -> WidgetResponse:
         metric_date = calendar_date_for_timezone(self._timezone_name, now=now)
-        metrics = self._metrics_provider.fetch_daily_metrics(metric_date)
+        previous_hrv_trend = self._load_previous_hrv_trend()
+        metrics = self._metrics_provider.fetch_daily_metrics(
+            metric_date, previous_hrv_trend=previous_hrv_trend,
+        )
         payload = self._normalize(
             metrics,
             refreshed_at=now,
@@ -140,6 +148,23 @@ class WidgetRefreshService:
         )
         self._snapshot.save(snapshot)
         return payload
+
+    def _load_previous_hrv_trend(self) -> list[HrvTrendPointInternal] | None:
+        snapshot = self._load_valid_snapshot()
+        if snapshot is None:
+            return None
+        trend = snapshot.payload.hrv_trend
+        if trend is None:
+            return None
+        return [
+            HrvTrendPointInternal(
+                date=p.date,
+                overnight_average=p.overnight_average,
+                seven_day_average=p.seven_day_average,
+                status=p.status,
+            )
+            for p in trend
+        ]
 
     def _load_valid_snapshot(self) -> WidgetSnapshot | None:
         try:
