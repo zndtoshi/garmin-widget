@@ -1,0 +1,107 @@
+package com.zndtoshi.garminwidget.data
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [28])
+class StorePersistenceTest {
+
+    private lateinit var context: Context
+
+    @Before
+    fun setUp() {
+        context = ApplicationProvider.getApplicationContext()
+        context.getSharedPreferences(WidgetStore.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
+    @Test
+    fun widgetStore_saveSuccess_then_newInstance_read_retains_expanded_fields() {
+        val payload = """
+            {
+              "schemaVersion":1,
+              "date":"2026-07-28",
+              "sleepScore":83,
+              "sleepStages":{"deepSeconds":5200,"lightSeconds":9600,"remSeconds":3000,"awakeSeconds":600},
+              "hrvTrend":[{"date":"2026-07-28","overnightAverage":48,"sevenDayAverage":46,"status":"BALANCED"}],
+              "bodyBatteryTimeline":[{"timestamp":"2026-07-28T00:00:00Z","value":50}],
+              "stressTimeline":[{"timestamp":"2026-07-28T01:00:00Z","value":20}],
+              "lastActivity":{"name":"Morning Run","typeKey":"running","durationSeconds":1500}
+            }
+        """.trimIndent()
+
+        WidgetStore(context).saveSuccess(payload)
+        val state = WidgetStore(context).read()
+
+        assertEquals(LocalStatus.READY, state.status)
+        assertNotNull(state.data)
+        assertEquals(83, state.data?.sleepScore)
+        assertEquals(5200, state.data?.sleepStages?.deepSeconds)
+        assertEquals(9600, state.data?.sleepStages?.lightSeconds)
+        assertEquals(1, state.data?.hrvTrend?.size)
+        assertEquals(48, state.data?.hrvTrend?.first()?.overnightAverage)
+        assertEquals(1, state.data?.bodyBatteryTimeline?.size)
+        assertEquals(1, state.data?.stressTimeline?.size)
+        assertEquals("Morning Run", state.data?.lastActivity?.name)
+        assertEquals("running", state.data?.lastActivity?.typeKey)
+    }
+
+    @Test
+    fun settingsStore_opacity_defaults_persists_and_clamps() {
+        val store = SettingsStore(context)
+        assertEquals(88, store.widgetOpacityPercent())
+
+        store.saveWidgetOpacityPercent(64)
+        assertEquals(64, SettingsStore(context).widgetOpacityPercent())
+
+        store.saveWidgetOpacityPercent(150)
+        assertEquals(100, SettingsStore(context).widgetOpacityPercent())
+
+        // Corrupt/out-of-range persisted raw value is clamped on read.
+        context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(SettingsStore.KEY_WIDGET_OPACITY_PERCENT, -20)
+            .commit()
+        assertEquals(0, SettingsStore(context).widgetOpacityPercent())
+    }
+
+    @Test
+    fun settingsStore_corrupt_opacity_string_returns_default() {
+        context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(SettingsStore.KEY_WIDGET_OPACITY_PERCENT, "not-an-int")
+            .commit()
+        assertEquals(88, SettingsStore(context).widgetOpacityPercent())
+    }
+
+    @Test
+    fun settings_blank_token_does_not_remove_existing_encrypted_token() {
+        val prefs = context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(SettingsStore.KEY_ENCRYPTED_TOKEN, "existing-encrypted-token")
+            .putString(SettingsStore.KEY_BACKEND_URL, "https://old.example")
+            .commit()
+
+        SettingsStore.persistSettings(
+            prefs = prefs,
+            backendUrl = "https://garmin.zndtoshi.com/",
+            encryptedToken = null,
+            replaceToken = false,
+        )
+
+        assertTrue(prefs.contains(SettingsStore.KEY_ENCRYPTED_TOKEN))
+        assertEquals("existing-encrypted-token", prefs.getString(SettingsStore.KEY_ENCRYPTED_TOKEN, null))
+        assertEquals("https://garmin.zndtoshi.com", prefs.getString(SettingsStore.KEY_BACKEND_URL, null))
+        assertFalse(SettingsStore(context).backendUrl().endsWith("/"))
+    }
+}

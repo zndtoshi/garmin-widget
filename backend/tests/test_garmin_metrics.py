@@ -19,11 +19,14 @@ from app.garmin.adapter import (
     _as_int,
     _as_non_negative_int,
     _downsample,
+    _extract_activity_hr_timeline,
+    _extract_activity_id,
     _extract_body_battery_timeline,
     _extract_last_activity,
     _extract_sleep_stages,
     _extract_stress_timeline,
     _sort_dedup_and_downsample,
+    _sort_dedup_downsample_hr,
 )
 from app.garmin.dates import calendar_date_for_timezone, parse_metric_date
 from app.garmin.errors import (
@@ -34,13 +37,16 @@ from app.garmin.errors import (
 )
 from app.garmin.normalize import normalize_daily_metrics
 from app.models.domain import (
+    ActivityHeartRatePointInternal,
     DailyMetrics,
     HrvTrendPointInternal,
     SleepStagesInternal,
     TimelinePointInternal,
 )
 from app.models.widget import (
+    ActivityHeartRatePoint,
     HrvTrendPoint,
+    LastActivity,
     RefreshStatus,
     TimelinePoint,
     WidgetResponse,
@@ -1114,3 +1120,206 @@ def test_timeline_point_rejects_out_of_range_values() -> None:
         TimelinePoint(timestamp=base, value=-1)
     with pytest.raises(ValidationError):
         TimelinePoint(timestamp=base, value=101)
+
+
+# --- Activity heart-rate timeline ---
+
+
+def test_activity_hr_timeline_from_details_fixture() -> None:
+    activities = _load_fixture("activities_complete.json")
+    assert isinstance(activities, list)
+    activities[0]["activityId"] = 424242
+    client = _complete_client(
+        activities=activities,
+        activity_details=_load_fixture("activity_details_hr.json"),
+    )
+    metrics = GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
+    assert metrics.last_activity is not None
+    assert metrics.last_activity.heart_rate_timeline is not None
+    assert len(metrics.last_activity.heart_rate_timeline) == 10
+    assert metrics.last_activity.heart_rate_timeline[0].elapsed_seconds == 0
+    assert metrics.last_activity.heart_rate_timeline[0].heart_rate == 112
+    assert metrics.last_activity.heart_rate_timeline[-1].heart_rate == 150
+    detail_calls = [c for c in client.calls if c[0] == "get_activity_details"]
+    assert len(detail_calls) == 1
+    assert detail_calls[0][1] == (424242, 2000, 0)
+    dumped = normalize_daily_metrics(
+        metrics, refreshed_at=datetime(2026, 7, 28, 12, 0, tzinfo=UTC),
+        refresh_status=RefreshStatus.SUCCESS, stale=False,
+    ).model_dump_json(by_alias=True)
+    assert "heartRateTimeline" in dumped
+    assert "activityId" not in dumped
+    assert "424242" not in dumped
+    assert "directLatitude" not in dumped
+    assert "44.1" not in dumped
+
+
+def test_activity_hr_call_budget_initial_backfill_with_details() -> None:
+    hrv_by_date = {}
+    for i in range(7):
+        d = date(2026, 7, 22) + timedelta(days=i)
+        hrv_by_date[d.isoformat()] = {
+            "hrvSummary": {
+                "lastNightAvg": 40 + i,
+                "weeklyAvg": 42 + i,
+                "status": "BALANCED",
+            }
+        }
+    activities = _load_fixture("activities_complete.json")
+    assert isinstance(activities, list)
+    activities[0]["activityId"] = 1001
+    client = _complete_client(
+        hrv_by_date=hrv_by_date,
+        activities=activities,
+        activity_details=_load_fixture("activity_details_hr.json"),
+    )
+    GarminMetricsAdapter(client).fetch_daily_metrics(
+        date(2026, 7, 28), previous_hrv_trend=None,
+    )
+    assert len(client.calls) == 16
+
+
+def test_activity_hr_call_budget_same_day_with_details() -> None:
+    existing_trend = [
+        HrvTrendPointInternal(
+            date=date(2026, 7, 28), overnight_average=40,
+            seven_day_average=43, status="BALANCED",
+        ),
+    ]
+    activities = _load_fixture("activities_complete.json")
+    assert isinstance(activities, list)
+    activities[0]["activityId"] = 1001
+    client = _complete_client(
+        activities=activities,
+        activity_details=_load_fixture("activity_details_hr.json"),
+    )
+    GarminMetricsAdapter(client).fetch_daily_metrics(
+        date(2026, 7, 28), previous_hrv_trend=existing_trend,
+    )
+    assert len(client.calls) == 10
+
+
+def test_activity_hr_budget_without_id_remains_15_and_9() -> None:
+    hrv_by_date = {
+        (date(2026, 7, 22) + timedelta(days=i)).isoformat(): {
+            "hrvSummary": {"lastNightAvg": 40 + i, "weeklyAvg": 42, "status": "BALANCED"}
+        }
+        for i in range(7)
+    }
+    client = _complete_client(hrv_by_date=hrv_by_date)
+    GarminMetricsAdapter(client).fetch_daily_metrics(
+        date(2026, 7, 28), previous_hrv_trend=None,
+    )
+    assert len(client.calls) == 15
+
+    existing = [
+        HrvTrendPointInternal(
+            date=date(2026, 7, 28), overnight_average=40,
+            seven_day_average=43, status="BALANCED",
+        ),
+    ]
+    client2 = _complete_client()
+    GarminMetricsAdapter(client2).fetch_daily_metrics(
+        date(2026, 7, 28), previous_hrv_trend=existing,
+    )
+    assert len(client2.calls) == 9
+
+
+def test_activity_hr_details_unavailable_keeps_summary() -> None:
+    activities = _load_fixture("activities_complete.json")
+    assert isinstance(activities, list)
+    activities[0]["activityId"] = 55
+    client = _complete_client(
+        activities=activities,
+        errors={"get_activity_details": GarminConnectConnectionError("404")},
+    )
+    metrics = GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
+    assert metrics.last_activity is not None
+    assert metrics.last_activity.name == "Morning Run"
+    assert metrics.last_activity.heart_rate_timeline is None
+
+
+def test_activity_hr_malformed_details_returns_none() -> None:
+    assert _extract_activity_hr_timeline(None) is None
+    assert _extract_activity_hr_timeline({"metricDescriptors": []}) is None
+    assert _extract_activity_hr_timeline(
+        {
+            "metricDescriptors": [{"key": "directHeartRate", "metricsIndex": 0}],
+            "activityDetailMetrics": [{"metrics": [10]}],
+        }
+    ) is None
+
+
+def test_activity_hr_downsample_preserves_first_last() -> None:
+    points = [
+        ActivityHeartRatePointInternal(elapsed_seconds=i * 10, heart_rate=100 + (i % 20))
+        for i in range(100)
+    ]
+    result = _sort_dedup_downsample_hr(points, max_points=48)
+    assert len(result) == 48
+    assert result[0].elapsed_seconds == 0
+    assert result[-1].elapsed_seconds == 990
+
+
+def test_activity_hr_public_model_bounds() -> None:
+    with pytest.raises(ValidationError):
+        ActivityHeartRatePoint(elapsedSeconds=-1, heartRate=120)
+    with pytest.raises(ValidationError):
+        ActivityHeartRatePoint(elapsedSeconds=0, heartRate=10)
+    with pytest.raises(ValidationError):
+        ActivityHeartRatePoint(elapsedSeconds=0, heartRate=260)
+    overlong = [
+        ActivityHeartRatePoint(elapsedSeconds=i, heartRate=120) for i in range(49)
+    ]
+    with pytest.raises(ValidationError):
+        LastActivity(heartRateTimeline=overlong)
+
+
+def test_extract_activity_id_variants() -> None:
+    assert _extract_activity_id([{"activityId": 12}]) == 12
+    assert _extract_activity_id([{"activityId": "34"}]) == 34
+    assert _extract_activity_id([{"activityId": 0}]) is None
+    assert _extract_activity_id([{}]) is None
+
+
+def test_activity_hr_timeline_snapshot_round_trip(tmp_path: Path) -> None:
+    from app.models.domain import LastActivityInternal
+    from app.persistence.models import WidgetSnapshot
+    from app.persistence.snapshot import FilesystemWidgetSnapshotRepository
+
+    metrics = DailyMetrics(
+        metric_date=date(2026, 7, 28),
+        last_activity=LastActivityInternal(
+            name="Morning Run",
+            type_key="running",
+            average_heart_rate=148,
+            max_heart_rate=172,
+            heart_rate_timeline=[
+                ActivityHeartRatePointInternal(elapsed_seconds=0, heart_rate=112),
+                ActivityHeartRatePointInternal(elapsed_seconds=30, heart_rate=138),
+            ],
+        ),
+    )
+    payload = normalize_daily_metrics(
+        metrics,
+        refreshed_at=datetime(2026, 7, 28, 12, 0, tzinfo=UTC),
+        refresh_status=RefreshStatus.SUCCESS,
+        stale=False,
+    )
+    repo = FilesystemWidgetSnapshotRepository(tmp_path)
+    repo.save(
+        WidgetSnapshot(
+            persistenceFormatVersion=1,
+            lastSuccessfulRefreshAt=payload.refreshed_at,
+            payload=payload,
+        )
+    )
+    loaded = repo.load()
+    timeline = loaded.payload.last_activity.heart_rate_timeline
+    assert timeline is not None
+    assert len(timeline) == 2
+    assert timeline[0].elapsed_seconds == 0
+    assert timeline[0].heart_rate == 112
+    dumped = loaded.payload.model_dump_json(by_alias=True)
+    assert "heartRateTimeline" in dumped
+    assert "activityId" not in dumped

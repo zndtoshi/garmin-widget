@@ -1,5 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Garmin Widget</string>
-    <string name="widget_name">Garmin Daily Metrics</string>
+    <string name="widget_name">Garmin Wide</string>
+    <string name="widget_name_compact">Garmin Compact</string>
+    <string name="widget_name_wide">Garmin Wide</string>
+    <string name="widget_name_large">Garmin Large</string>
     <string name="widget_description">Daily Garmin metrics with manual refresh.</string>
+    <string name="widget_description_compact">Compact daily Garmin metrics.</string>
+    <string name="widget_description_wide">Wide daily Garmin metrics.</string>
+    <string name="widget_description_large">Large daily Garmin metrics with activity detail.</string>
 </resources>

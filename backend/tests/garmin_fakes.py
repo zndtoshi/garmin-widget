@@ -96,6 +96,7 @@ class FakeMetricsClient:
         training_readiness: object | None = None,
         device_last_used: object | None = None,
         activities: object | None = None,
+        activity_details: object | None = None,
         errors: dict[str, Exception] | None = None,
     ) -> None:
         self.sleep = sleep
@@ -108,6 +109,7 @@ class FakeMetricsClient:
         self.training_readiness = training_readiness
         self.device_last_used = device_last_used
         self.activities = activities
+        self.activity_details = activity_details
         self.errors = errors or {}
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
@@ -141,6 +143,13 @@ class FakeMetricsClient:
 
     def get_activities(self, start: int, limit: int) -> object:
         return self._invoke("get_activities", self.activities, start, limit)
+
+    def get_activity_details(
+        self, activity_id: int, maxchart: int = 2000, maxpoly: int = 4000
+    ) -> object:
+        return self._invoke(
+            "get_activity_details", self.activity_details, activity_id, maxchart, maxpoly
+        )
 
     def _invoke(self, name: str, payload: object, *args: object) -> object:
         self.calls.append((name, args))

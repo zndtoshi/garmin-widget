@@ -4,23 +4,24 @@ Private Android app and Jetpack Glance home-screen widget for the deployed Garmi
 
 ## Current state
 
-Phase 7 complete. Phase 8A backend data contract is implemented but not yet deployed.
+Phase 7 complete. Phase 8A backend data contract is merged, deployed, and live-verified. Phase 8B premium responsive widget UI is in progress; device polish and visual verification remain pending.
 
 - Kotlin/Compose configuration activity
 - Default backend: `https://garmin.zndtoshi.com`
 - Bearer token encrypted with Android Keystore (AES-GCM)
 - Latest widget payload cached in app-private storage
-- Responsive Glance widget with primary daily metrics and `PreferencesGlanceStateDefinition` observable state
+- Three widget-picker presets (**Garmin Compact**, **Garmin Wide**, **Garmin Large**) sharing one adaptive Glance implementation (`SizeMode.Exact` + `AdaptiveLayoutSpec` from real `LocalSize`)
 - Manual refresh through one deduplicated WorkManager job (no network constraint)
 - Cached-data preservation across network and authentication failures
 - Widget-body launch into Garmin Connect, with browser fallback
-- **Backend-first additive compatibility**: the existing v0.1.0 Android parser ignores unknown JSON fields from the expanded Phase 8A response. An Android JVM test confirms original fields parse correctly from the expanded payload.
+- Background opacity control (0-100%) persisted locally with immediate widget refresh
+- **Backend-first additive compatibility**: parser + cache handle deployed additive fields plus optional `lastActivity.heartRateTimeline` while preserving original-field compatibility. Sleep legend shows stage initials only (no per-stage durations). Large activity cards can draw a real HR chart when timeline samples exist.
 
 The app never stores Garmin credentials and never contacts Garmin directly.
 
 ### Upcoming work
 
-- **Phase 8B**: Premium widget UI consuming expanded fields (`sleepStages`, `hrvTrend`, `bodyBatteryTimeline`, `stressTimeline`, `lastActivity`)
+- **Phase 8B**: Device visual verification and polish for launcher-specific rendering behavior (presets/adaptive/HR chart pending on-device confirmation)
 - **Phase 8C**: Approved 30-minute periodic background refresh via WorkManager
 
 ## Build prerequisites
@@ -36,6 +37,6 @@ Open this `android` directory as the Android Studio project, allow Gradle sync t
 2. Keep the default backend URL unless the deployment changes.
 3. Paste the same widget bearer token stored in Render.
 4. Tap **Save and refresh**.
-5. Tap **Add widget to home screen**, or add **Garmin Daily Metrics** from the launcher widget picker.
+5. Pin **Compact**, **Wide**, or **Large** from the app, or add the matching preset from the launcher widget picker.
 
 Never commit the bearer token or include it in screenshots/logs.

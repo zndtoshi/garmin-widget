@@ -6,6 +6,7 @@ from app.models.domain import DailyMetrics
 from app.models.widget import (
     WIDGET_SCHEMA_VERSION,
     WIDGET_SOURCE,
+    ActivityHeartRatePoint,
     HrvTrendPoint,
     LastActivity,
     RefreshStatus,
@@ -63,6 +64,15 @@ def normalize_daily_metrics(
     last_activity = None
     if metrics.last_activity is not None:
         a = metrics.last_activity
+        hr_timeline = None
+        if a.heart_rate_timeline:
+            hr_timeline = [
+                ActivityHeartRatePoint(
+                    elapsedSeconds=p.elapsed_seconds,
+                    heartRate=p.heart_rate,
+                )
+                for p in a.heart_rate_timeline
+            ]
         last_activity = LastActivity(
             name=a.name,
             typeKey=a.type_key,
@@ -78,6 +88,7 @@ def normalize_daily_metrics(
             aerobicTrainingEffect=a.aerobic_training_effect,
             anaerobicTrainingEffect=a.anaerobic_training_effect,
             trainingLoad=a.training_load,
+            heartRateTimeline=hr_timeline,
         )
 
     return WidgetResponse(

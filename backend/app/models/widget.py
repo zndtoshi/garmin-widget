@@ -63,6 +63,13 @@ class TimelinePoint(BaseModel):
         return value.astimezone(UTC)
 
 
+class ActivityHeartRatePoint(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    elapsed_seconds: int = Field(ge=0, alias="elapsedSeconds")
+    heart_rate: int = Field(ge=20, le=250, alias="heartRate")
+
+
 class LastActivity(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -90,6 +97,9 @@ class LastActivity(BaseModel):
         default=None, alias="anaerobicTrainingEffect"
     )
     training_load: float | None = Field(default=None, alias="trainingLoad")
+    heart_rate_timeline: list[ActivityHeartRatePoint] | None = Field(
+        default=None, alias="heartRateTimeline", max_length=48
+    )
 
     @field_validator("started_at", mode="after")
     @classmethod

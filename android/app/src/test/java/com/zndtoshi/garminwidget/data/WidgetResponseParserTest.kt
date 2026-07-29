@@ -2,8 +2,11 @@ package com.zndtoshi.garminwidget.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import org.json.JSONArray
+import org.json.JSONObject
 
 class WidgetResponseParserTest {
     @Test
@@ -15,6 +18,11 @@ class WidgetResponseParserTest {
         assertEquals(63, response.sleepScore)
         assertEquals(64, response.bodyBattery)
         assertEquals(RefreshStatus.SUCCESS, response.refreshStatus)
+        assertEquals(5400, response.sleepStages?.deepSeconds)
+        assertEquals(1, response.hrvTrend.size)
+        assertEquals(2, response.bodyBatteryTimeline.size)
+        assertEquals(1, response.stressTimeline.size)
+        assertEquals("Morning Run", response.lastActivity?.name)
     }
 
     @Test
@@ -24,6 +32,87 @@ class WidgetResponseParserTest {
         )
 
         assertNull(response.restingHeartRate)
+    }
+
+    @Test
+    fun ignoresMalformedAdditiveFields() {
+        val json = JSONObject(COMPLETE_PAYLOAD)
+        json.put("sleepStages", JSONObject().put("deepSeconds", "x"))
+        json.put("hrvTrend", JSONArray().put(JSONObject().put("date", "bad").put("overnightAverage", "x")))
+        json.put("bodyBatteryTimeline", JSONArray().put(JSONObject().put("timestamp", "bad").put("value", "x")))
+        json.put("lastActivity", JSONObject().put("name", true))
+        val response = WidgetResponseParser.parse(json.toString())
+
+        assertNull(response.sleepStages?.deepSeconds)
+        assertEquals(1, response.hrvTrend.size) // retains item but nullable fields
+        assertEquals(0, response.bodyBatteryTimeline.size)
+        assertNull(response.lastActivity?.name)
+    }
+
+    @Test
+    fun enforces_defensive_bounds_and_filters_invalid_values() {
+        val json = JSONObject(COMPLETE_PAYLOAD)
+        val longTrend = JSONArray()
+        repeat(12) {
+            longTrend.put(JSONObject().put("date", "2026-07-${10 + it}").put("overnightAverage", it))
+        }
+        val longTimeline = JSONArray()
+        repeat(70) {
+            longTimeline.put(
+                JSONObject()
+                    .put("timestamp", "2026-07-29T00:${(it % 60).toString().padStart(2, '0')}:00Z")
+                    .put("value", if (it % 3 == 0) 150 else 50),
+            )
+        }
+        json.put("hrvTrend", longTrend)
+        json.put("bodyBatteryTimeline", longTimeline)
+        json.put("stressTimeline", longTimeline)
+        json.put(
+            "sleepStages",
+            JSONObject().put("deepSeconds", -5).put("lightSeconds", 100),
+        )
+        json.put(
+            "lastActivity",
+            JSONObject()
+                .put("distanceMeters", -1.0)
+                .put("averageSpeedMetersPerSecond", "NaN")
+                .put("trainingLoad", "Infinity")
+                .put("durationSeconds", 1200),
+        )
+        val response = WidgetResponseParser.parse(json.toString())
+        assertEquals(7, response.hrvTrend.size)
+        assertTrue(response.bodyBatteryTimeline.size <= 48)
+        assertTrue(response.stressTimeline.size <= 48)
+        assertTrue(response.bodyBatteryTimeline.all { it.value in 0..100 })
+        assertTrue(response.stressTimeline.all { it.value in 0..100 })
+        assertEquals(100, response.sleepStages?.lightSeconds)
+        assertNull(response.sleepStages?.deepSeconds)
+        assertNull(response.lastActivity?.distanceMeters)
+        assertNull(response.lastActivity?.averageSpeedMetersPerSecond)
+        assertNull(response.lastActivity?.trainingLoad)
+    }
+
+    @Test
+    fun parses_and_bounds_activity_heart_rate_timeline() {
+        val json = JSONObject(COMPLETE_PAYLOAD)
+        val activity = json.getJSONObject("lastActivity")
+        val timeline = JSONArray()
+            .put(JSONObject().put("elapsedSeconds", 30).put("heartRate", 138))
+            .put(JSONObject().put("elapsedSeconds", 0).put("heartRate", 112))
+            .put(JSONObject().put("elapsedSeconds", 10).put("heartRate", 10))
+            .put(JSONObject().put("elapsedSeconds", -1).put("heartRate", 120))
+            .put(JSONObject().put("elapsedSeconds", 60).put("heartRate", 260))
+        repeat(60) { i ->
+            timeline.put(JSONObject().put("elapsedSeconds", 100 + i).put("heartRate", 140))
+        }
+        activity.put("heartRateTimeline", timeline)
+        val response = WidgetResponseParser.parse(json.toString())
+        val points = response.lastActivity?.heartRateTimeline.orEmpty()
+        assertTrue(points.size <= 48)
+        assertEquals(0, points.first().elapsedSeconds)
+        assertEquals(112, points.first().heartRate)
+        assertTrue(points.all { it.heartRate in 20..250 })
+        assertTrue(points.zipWithNext().all { (a, b) -> a.elapsedSeconds <= b.elapsedSeconds })
     }
 
     @Test
@@ -50,7 +139,12 @@ class WidgetResponseParserTest {
               "refreshedAt":"2026-07-29T06:37:17Z",
               "stale":false,
               "refreshStatus":"SUCCESS",
-              "source":"garmin-connect-unofficial"
+              "source":"garmin-connect-unofficial",
+              "sleepStages":{"deepSeconds":5400,"lightSeconds":10800,"remSeconds":4200,"awakeSeconds":2220},
+              "hrvTrend":[{"date":"2026-07-29","overnightAverage":43,"sevenDayAverage":42,"status":"BALANCED"}],
+              "bodyBatteryTimeline":[{"timestamp":"2026-07-29T00:00:00Z","value":50},{"timestamp":"2026-07-29T04:00:00Z","value":64}],
+              "stressTimeline":[{"timestamp":"2026-07-29T01:00:00Z","value":20}],
+              "lastActivity":{"name":"Morning Run","typeKey":"running","startedAt":"2026-07-29T05:00:00Z","durationSeconds":2400}
             }
         """.trimIndent()
     }

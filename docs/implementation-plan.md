@@ -242,13 +242,13 @@ This phase proves Garmin access locally. It must not expose a Garmin-backed publ
 
 ## Phase 8: Polish and reliability
 
-### Phase 8A: Expanded backend data contract (complete, not yet deployed)
+### Phase 8A: Expanded backend data contract (deployed and live-verified)
 
-Implemented additive nullable fields for premium widgets: `sleepStages`, `hrvTrend` (bounded 7-day rolling with backfill), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48 after downsampling), and `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; null-only objects are filtered). All fields maintain `schemaVersion=1` backward compatibility. Android backward-compat JVM test confirms v0.1.0 parser reads expanded responses without error. Must be merged and verified on Render before treating as deployed.
+Implemented additive nullable fields for premium widgets: `sleepStages`, `hrvTrend` (bounded 7-day rolling with backfill), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48 after downsampling), and `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; null-only objects are filtered). All fields maintain `schemaVersion=1` backward compatibility. Android backward-compat JVM tests confirm original fields still parse from expanded payloads.
 
-### Phase 8B: Android premium widget UI (pending)
+### Phase 8B: Android premium widget UI (in progress)
 
-Consume expanded fields in the Glance widget UI.
+Phase 8B is in progress: three picker presets (Compact/Wide/Large), `SizeMode.Exact` adaptive layout from real allocated size, sleep legend without per-stage durations, Canvas premium visuals, optional private-safe `lastActivity.heartRateTimeline` charting, and configurable opacity. Device visual verification across launchers/resizing remains pending; the HR timeline backend extension is not claimed deployed until live-verified.
 
 ### Phase 8C: Approved 30-minute periodic background refresh (pending)
 

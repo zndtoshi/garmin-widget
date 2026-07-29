@@ -17,6 +17,7 @@ from app.garmin.errors import (
     GarminUpstreamError,
 )
 from app.models.domain import (
+    ActivityHeartRatePointInternal,
     DailyMetrics,
     HrvTrendPointInternal,
     LastActivityInternal,
@@ -25,6 +26,11 @@ from app.models.domain import (
 )
 
 EndpointStatus = Literal["ok", "unavailable"]
+
+ACTIVITY_DETAILS_MAX_CHART = 2000
+ACTIVITY_HR_TIMELINE_MAX_POINTS = 48
+ACTIVITY_HR_MIN = 20
+ACTIVITY_HR_MAX = 250
 
 
 class GarminMetricsClient(Protocol):
@@ -45,6 +51,10 @@ class GarminMetricsClient(Protocol):
     def get_device_last_used(self) -> Any: ...
 
     def get_activities(self, start: int, limit: int) -> Any: ...
+
+    def get_activity_details(
+        self, activity_id: int, maxchart: int = 2000, maxpoly: int = 4000
+    ) -> Any: ...
 
 
 class GarminMetricsAdapter:
@@ -100,6 +110,20 @@ class GarminMetricsAdapter:
         stress_timeline = _extract_stress_timeline(stress)
         training_readiness = _extract_training_readiness(readiness)
         last_activity = _extract_last_activity(activities)
+        activity_id = _extract_activity_id(activities)
+        if last_activity is not None and activity_id is not None:
+            details, detail_status = self._call(
+                "get_activity_details",
+                activity_id,
+                ACTIVITY_DETAILS_MAX_CHART,
+                0,
+            )
+            outcomes.append(detail_status)
+            hr_timeline = _extract_activity_hr_timeline(details)
+            if hr_timeline:
+                last_activity = last_activity.model_copy(
+                    update={"heart_rate_timeline": hr_timeline}
+                )
         garmin_sync_at = _extract_garmin_sync_at(device)
 
         return DailyMetrics(
@@ -326,14 +350,7 @@ def _downsample(
 
 
 def _extract_last_activity(payload: Any) -> LastActivityInternal | None:
-    if isinstance(payload, list):
-        if not payload:
-            return None
-        activity = payload[0] if isinstance(payload[0], dict) else None
-    elif isinstance(payload, dict):
-        activity = payload
-    else:
-        return None
+    activity = _first_activity_dict(payload)
     if activity is None:
         return None
 
@@ -357,6 +374,124 @@ def _extract_last_activity(payload: Any) -> LastActivityInternal | None:
     )
     if _is_empty_activity(result):
         return None
+    return result
+
+
+def _first_activity_dict(payload: Any) -> dict[str, Any] | None:
+    if isinstance(payload, list):
+        if not payload:
+            return None
+        return payload[0] if isinstance(payload[0], dict) else None
+    if isinstance(payload, dict):
+        return payload
+    return None
+
+
+def _extract_activity_id(payload: Any) -> int | None:
+    """Transient Garmin activity id for detail fetch only; never persisted publicly."""
+    activity = _first_activity_dict(payload)
+    if activity is None:
+        return None
+    raw = activity.get("activityId")
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        return raw if raw > 0 else None
+    if isinstance(raw, float) and raw.is_integer() and raw > 0:
+        return int(raw)
+    if isinstance(raw, str):
+        text = raw.strip()
+        if text.isdigit():
+            value = int(text)
+            return value if value > 0 else None
+    return None
+
+
+def _extract_activity_hr_timeline(
+    details: Any,
+) -> list[ActivityHeartRatePointInternal] | None:
+    if not isinstance(details, dict):
+        return None
+    try:
+        from garminconnect.activity_details import parse_activity_detail_metrics
+    except Exception:
+        return None
+    try:
+        samples = parse_activity_detail_metrics(details)
+    except Exception:
+        return None
+    if not isinstance(samples, list) or not samples:
+        return None
+
+    points: list[ActivityHeartRatePointInternal] = []
+    for sample in samples:
+        if not isinstance(sample, dict):
+            continue
+        elapsed = _activity_elapsed_seconds(sample)
+        heart_rate = _activity_heart_rate(sample)
+        if elapsed is None or heart_rate is None:
+            continue
+        points.append(
+            ActivityHeartRatePointInternal(
+                elapsed_seconds=elapsed,
+                heart_rate=heart_rate,
+            )
+        )
+    if not points:
+        return None
+    return _sort_dedup_downsample_hr(points, ACTIVITY_HR_TIMELINE_MAX_POINTS)
+
+
+def _activity_elapsed_seconds(sample: dict[str, Any]) -> int | None:
+    for key in ("sumElapsedDuration", "sumDuration", "sumMovingDuration"):
+        value = _as_int(sample.get(key))
+        if value is not None and value >= 0:
+            return value
+        raw = sample.get(key)
+        if isinstance(raw, float) and math.isfinite(raw) and raw >= 0:
+            return int(raw)
+    return None
+
+
+def _activity_heart_rate(sample: dict[str, Any]) -> int | None:
+    for key in ("directHeartRate", "heartRate"):
+        value = _as_int(sample.get(key))
+        if value is not None and ACTIVITY_HR_MIN <= value <= ACTIVITY_HR_MAX:
+            return value
+        raw = sample.get(key)
+        if isinstance(raw, float) and math.isfinite(raw):
+            rounded = int(round(raw))
+            if ACTIVITY_HR_MIN <= rounded <= ACTIVITY_HR_MAX:
+                return rounded
+    return None
+
+
+def _sort_dedup_downsample_hr(
+    points: list[ActivityHeartRatePointInternal],
+    max_points: int,
+) -> list[ActivityHeartRatePointInternal]:
+    ordered = sorted(points, key=lambda p: (p.elapsed_seconds, p.heart_rate))
+    deduped: list[ActivityHeartRatePointInternal] = []
+    seen: set[int] = set()
+    for point in ordered:
+        if point.elapsed_seconds in seen:
+            continue
+        seen.add(point.elapsed_seconds)
+        deduped.append(point)
+    if len(deduped) <= max_points:
+        return deduped
+    first = deduped[0]
+    last = deduped[-1]
+    middle = deduped[1:-1]
+    picks = max_points - 2
+    if picks <= 0:
+        return [first, last]
+    step = (len(middle) - 1) / (picks - 1) if picks > 1 else 0
+    result: list[ActivityHeartRatePointInternal] = [first]
+    for i in range(picks):
+        idx = int(i * step) if picks > 1 else 0
+        result.append(middle[idx])
+    result.append(last)
     return result
 
 

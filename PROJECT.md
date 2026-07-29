@@ -18,7 +18,7 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is implemented and verified locally but **not yet deployed**; it must be merged and verified on Render before being considered live.
+Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is merged, deployed, and live-verified. Phase 8B (premium responsive widget UI with Compact/Wide/Large picker presets, exact-size adaptive layout, and optional activity HR chart) is in progress; device polish and visual verification remain pending. The additive `lastActivity.heartRateTimeline` backend extension is implemented locally and is not claimed deployed until live-verified.
 
 Implemented now:
 
@@ -37,7 +37,7 @@ Implemented now:
   - `sleepStages` (deep/light/REM/awake durations, negative values filtered)
   - `hrvTrend` (rolling 7-day, oldest-first, bounded to 7 entries max; initial backfill then same-day reuse)
   - `bodyBatteryTimeline` and `stressTimeline` (intraday points, sorted/deduped, values 0–100, max 48 after downsampling)
-  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled)
+  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled). Optional private-safe `heartRateTimeline` (max 48) may be present after a transient activity-details fetch; activity IDs/GPS/raw details are never exposed.
   - All new fields are nullable and backward-compatible with `schemaVersion=1`
 - Atomic latest-widget snapshot persistence and refresh coordination
 - Render-oriented container entrypoint (`PORT`, one worker; proxy headers disabled)
@@ -54,7 +54,7 @@ Not implemented yet:
 
 - Device/emulator verification of the Android app and Glance widget
 - Android release signing and final private distribution
-- Phase 8B: Android premium widget UI consuming expanded fields
+- Phase 8B: Device visual verification and polish for premium responsive UI
 - Phase 8C: Approved 30-minute periodic background refresh (not screen-on-triggered)
 - Multi-process/distributed refresh locking
 - `/api/v1/widget/history` (future only)
@@ -134,8 +134,15 @@ Version one does **not** store long-term health history.
 
 ## HRV trend and call budget
 
-The `hrvTrend` field is a bounded rolling 7-day window. On initial refresh (no cached snapshot or no existing trend), the adapter backfills up to 6 historical HRV calls plus the current day's call, for a total of up to **15 Garmin endpoint calls** (9 standard + 6 historical HRV). On subsequent same-day refreshes where a cached trend exists, only the current day's HRV is re-fetched, keeping the total to **9 Garmin endpoint calls**.
+The `hrvTrend` field is a bounded rolling 7-day window. On initial refresh (no cached snapshot or no existing trend), the adapter backfills up to 6 historical HRV calls plus the current day's call, for a total of up to **15 Garmin endpoint calls** (9 standard + 6 historical HRV) when no activity-details fetch is needed. On subsequent same-day refreshes where a cached trend exists, only the current day's HRV is re-fetched, keeping the total to **9 Garmin endpoint calls**.
 
+When the latest activity has a usable Garmin activity ID, the adapter may add one transient `get_activity_details(..., maxpoly=0)` call to build `lastActivity.heartRateTimeline`. Conditional budgets:
+
+- initial HRV backfill + activity details: maximum **16** calls
+- ordinary cached-trend refresh + activity details: maximum **10** calls
+- without a usable activity ID, the existing **15** / **9** budgets remain
+
+Activity IDs, GPS/route polylines, and raw detail descriptors are never written to the public payload, snapshots, or logs.
 ## Refresh and cooldown rules
 
 - `GET /health` must not contact Garmin and must not read persistent storage.
@@ -180,7 +187,7 @@ Version-one public JSON uses camelCase and explicit nullability for metrics that
 | `stress` | number \| null | Stress value |
 | `stressTimeline` | array \| null | Intraday points (max 48): `{timestamp, value}` |
 | `trainingReadiness` | number \| null | Training readiness |
-| `lastActivity` | object \| null | Most recent activity with name, typeKey, startedAt, duration, distance, HR, etc. |
+| `lastActivity` | object \| null | Most recent activity summary. Optional additive `heartRateTimeline` (max 48): `{elapsedSeconds, heartRate}` from a transient details fetch; never includes activity ID/GPS/raw details. |
 | `garminSyncAt` | string \| null | ISO-8601 UTC timestamp |
 | `refreshedAt` | string \| null | ISO-8601 UTC timestamp |
 | `stale` | boolean | Indicates stale cached data |

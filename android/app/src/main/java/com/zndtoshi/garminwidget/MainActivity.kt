@@ -7,15 +7,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,7 +36,10 @@ import androidx.work.WorkManager
 import com.zndtoshi.garminwidget.data.SettingsStore
 import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.ui.refreshResultText
+import com.zndtoshi.garminwidget.widget.GarminCompactWidgetReceiver
+import com.zndtoshi.garminwidget.widget.GarminLargeWidgetReceiver
 import com.zndtoshi.garminwidget.widget.GarminWidgetReceiver
+import com.zndtoshi.garminwidget.widget.bumpWidgetRefreshRevision
 import com.zndtoshi.garminwidget.work.RefreshScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -55,10 +61,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestWidgetPin() {
+    private fun requestWidgetPin(receiver: Class<*>) {
         val manager = AppWidgetManager.getInstance(this)
         if (manager.isRequestPinAppWidgetSupported) {
-            manager.requestPinAppWidget(ComponentName(this, GarminWidgetReceiver::class.java), null, null)
+            manager.requestPinAppWidget(ComponentName(this, receiver), null, null)
         }
     }
 }
@@ -66,10 +72,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ConfigurationScreen(
     settings: SettingsStore,
-    onRequestWidget: () -> Unit,
+    onRequestWidget: (Class<*>) -> Unit,
 ) {
     var backendUrl by remember { mutableStateOf(settings.backendUrl()) }
     var token by remember { mutableStateOf("") }
+    var opacityPercent by remember { mutableStateOf(settings.widgetOpacityPercent().toFloat()) }
     var message by remember {
         mutableStateOf(if (settings.isConfigured()) "A private token is already saved." else "Enter your private widget token.")
     }
@@ -87,6 +94,11 @@ private fun ConfigurationScreen(
         Text(
             "Your token is encrypted with Android Keystore and is never displayed again.",
             style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Transparency: 0% transparent to 100% opaque.",
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
@@ -108,14 +120,27 @@ private fun ConfigurationScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         )
         Spacer(Modifier.height(12.dp))
+        Text(
+            "Widget background opacity: ${opacityPercent.toInt()}%",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Slider(
+            value = opacityPercent,
+            onValueChange = { opacityPercent = it.coerceIn(0f, 100f) },
+            valueRange = 0f..100f,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(12.dp))
         Button(
             onClick = {
                 runCatching {
                     settings.save(backendUrl, token.takeIf(String::isNotBlank))
+                    settings.saveWidgetOpacityPercent(opacityPercent.toInt())
                 }.onSuccess {
                     token = ""
                     message = "Saved securely. Refreshing the widget…"
                     scope.launch {
+                        bumpWidgetRefreshRevision(context)
                         val requestId = RefreshScheduler.enqueue(context)
                         val refreshCompleted: Boolean = withContext(Dispatchers.IO) {
                             val deadlineMs = System.currentTimeMillis() + 45_000L
@@ -146,9 +171,24 @@ private fun ConfigurationScreen(
         ) {
             Text("Save and refresh")
         }
+        Spacer(Modifier.height(12.dp))
+        Text("Pin widget preset", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(8.dp))
-        Button(onClick = onRequestWidget, modifier = Modifier.fillMaxWidth()) {
-            Text("Add widget to home screen")
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { onRequestWidget(GarminCompactWidgetReceiver::class.java) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Compact") }
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = { onRequestWidget(GarminWidgetReceiver::class.java) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Wide") }
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = { onRequestWidget(GarminLargeWidgetReceiver::class.java) },
+                modifier = Modifier.weight(1f),
+            ) { Text("Large") }
         }
         Spacer(Modifier.height(16.dp))
         Text(message, style = MaterialTheme.typography.bodyMedium)
