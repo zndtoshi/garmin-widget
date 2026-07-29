@@ -135,18 +135,17 @@ internal object LayoutMetrics {
         // Size the visual elements from the actual row budgets instead of using
         // conservative fixed caps. This lets a resized widget consume the space
         // the launcher has really allocated while retaining compact fallbacks.
-        val activityTextBudget = if (showSecondary) 56 else 46
-        val hrChart = (activity - activityTextBudget)
-            .coerceIn(16, 64)
+        val hrChart = (activity - 30)
+            .coerceIn(16, 110)
             .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
 
         val sleepRing = min(panelWidth - 18f, (health - 27).toFloat())
-            .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 68f)
+            .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 110f)
         val graphWidth = (panelWidth - 12f).coerceIn(56f, 120f)
         val hrvHeight = (health - 42).toFloat()
-            .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 52f)
+            .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 90f)
         val panelChartHeight = (health - 41).toFloat()
-            .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 46f)
+            .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 90f)
 
         return AdaptiveLayoutSpec(
             widthDp = width,

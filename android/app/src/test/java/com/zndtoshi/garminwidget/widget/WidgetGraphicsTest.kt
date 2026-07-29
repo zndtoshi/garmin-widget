@@ -85,7 +85,7 @@ class WidgetGraphicsTest {
             emptyList(),
         )
         val top = 4f
-        val bottom = (height - 4).toFloat()
+        val bottom = (height - 15).toFloat()
         assertEquals(bottom, scaled.batteryPoints[0].y, 0.01f)
         assertEquals((top + bottom) / 2f, scaled.batteryPoints[1].y, 0.01f)
         assertEquals(top, scaled.batteryPoints[2].y, 0.01f)

@@ -92,7 +92,7 @@ internal fun buildCombinedChartGeometry(
     val left = 4f
     val top = 4f
     val right = (w - 4).toFloat().coerceAtLeast(left + 1f)
-    val bottom = (h - 4).toFloat().coerceAtLeast(top + 1f)
+    val bottom = (h - 15).toFloat().coerceAtLeast(top + 1f)
 
     val sortedBattery = battery.sortedBy { it.timestamp }
     val sortedStress = stress.sortedBy { it.timestamp }
@@ -314,6 +314,22 @@ internal fun drawCombinedChartBitmap(
     val bmp = Bitmap.createBitmap(geometry.widthPx, geometry.heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
     if (geometry.batteryPoints.isEmpty() && geometry.stressPoints.isEmpty()) return bmp
+
+    val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#45606B75")
+        style = Paint.Style.STROKE
+        strokeWidth = 1f
+    }
+    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#A8B0BEC5")
+        textSize = 10f
+        textAlign = Paint.Align.CENTER
+    }
+    listOf("00", "06", "12", "18", "24").forEachIndexed { index, label ->
+        val x = geometry.left + (geometry.right - geometry.left) * index / 4f
+        canvas.drawLine(x, geometry.top, x, geometry.bottom, gridPaint)
+        canvas.drawText(label, x, geometry.heightPx - 2f, labelPaint)
+    }
 
     if (geometry.batteryPoints.isNotEmpty()) {
         val batteryPoints = geometry.batteryPoints
@@ -696,6 +712,8 @@ internal data class ActivityHrChartGeometry(
     val maxPoint: ChartPoint?,
     val minHr: Int,
     val maxHr: Int,
+    val minElapsedSeconds: Int,
+    val maxElapsedSeconds: Int,
 ) {
     val hasRenderableSeries: Boolean get() = points.size >= 2
 }
@@ -707,17 +725,17 @@ internal fun buildActivityHrChartGeometry(
 ): ActivityHrChartGeometry {
     val w = max(1, widthPx)
     val h = max(1, heightPx)
-    val left = 4f
+    val left = 28f
     val top = 4f
     val right = (w - 4).toFloat().coerceAtLeast(left + 1f)
-    val bottom = (h - 4).toFloat().coerceAtLeast(top + 1f)
+    val bottom = (h - 15).toFloat().coerceAtLeast(top + 1f)
     val ordered = timeline
         .filter { it.elapsedSeconds >= 0 && it.heartRate in 20..250 }
         .sortedBy { it.elapsedSeconds }
         .distinctBy { it.elapsedSeconds }
         .take(48)
     if (ordered.isEmpty()) {
-        return ActivityHrChartGeometry(w, h, left, top, right, bottom, emptyList(), null, 20, 250)
+        return ActivityHrChartGeometry(w, h, left, top, right, bottom, emptyList(), null, 20, 250, 0, 0)
     }
     val minElapsed = ordered.first().elapsedSeconds
     val maxElapsed = ordered.last().elapsedSeconds
@@ -741,7 +759,7 @@ internal fun buildActivityHrChartGeometry(
 
     val points = ordered.map { ChartPoint(xOf(it.elapsedSeconds), yOf(it.heartRate), it.heartRate) }
     val maxPoint = points.maxByOrNull { it.value }
-    return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr)
+    return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
 internal fun drawActivityHrChartBitmap(
@@ -753,10 +771,33 @@ internal fun drawActivityHrChartBitmap(
     if (!geo.hasRenderableSeries) return null
     val bmp = Bitmap.createBitmap(geo.widthPx, geo.heightPx, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
+    val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#45606B75")
+        style = Paint.Style.STROKE
+        strokeWidth = 1f
+    }
+    val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#A8B0BEC5")
+        textSize = 10f
+    }
+    val midHr = (geo.minHr + geo.maxHr) / 2
+    listOf(geo.maxHr, midHr, geo.minHr).forEach { level ->
+        val y = geo.bottom - ((level - geo.minHr).toFloat() / (geo.maxHr - geo.minHr)) * (geo.bottom - geo.top)
+        canvas.drawLine(geo.left, y, geo.right, y, gridPaint)
+        labelPaint.textAlign = Paint.Align.RIGHT
+        canvas.drawText(level.toString(), geo.left - 4f, y + 4f, labelPaint)
+    }
+    listOf(0f, 0.5f, 1f).forEach { fraction ->
+        val x = geo.left + (geo.right - geo.left) * fraction
+        canvas.drawLine(x, geo.top, x, geo.bottom, gridPaint)
+        val elapsed = geo.minElapsedSeconds + ((geo.maxElapsedSeconds - geo.minElapsedSeconds) * fraction).toInt()
+        labelPaint.textAlign = Paint.Align.CENTER
+        canvas.drawText("${elapsed / 60}m", x, geo.heightPx - 2f, labelPaint)
+    }
     val linePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = WidgetPalette.activityHr
         style = Paint.Style.STROKE
-        strokeWidth = max(2f, geo.heightPx * 0.06f)
+        strokeWidth = max(1.5f, geo.heightPx * 0.025f)
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
     }
@@ -785,7 +826,7 @@ internal fun drawActivityHrChartBitmap(
             color = WidgetPalette.activityHrMax
             style = Paint.Style.FILL
         }
-        canvas.drawCircle(peak.x, peak.y, max(3f, geo.heightPx * 0.1f), marker)
+        canvas.drawCircle(peak.x, peak.y, max(2.5f, geo.heightPx * 0.055f), marker)
     }
     return bmp
 }

@@ -46,7 +46,6 @@ import com.zndtoshi.garminwidget.data.WidgetResponse
 import com.zndtoshi.garminwidget.data.WidgetStore
 import java.time.Instant
 import java.time.ZoneId
-import java.util.Locale
 
 class GarminWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
@@ -90,11 +89,10 @@ private fun WidgetContent(data: WidgetResponse?, status: LocalStatus, opacityPer
             EmptyState(status)
         } else {
             val zone = ZoneId.systemDefault()
-            val locale = Locale.getDefault()
             val bb = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone)
             val st = filterTimelineForResponseDate(data.stressTimeline, data.date, zone)
             Column(modifier = GlanceModifier.fillMaxWidth().clickable(actionRunCallback<OpenGarminAction>())) {
-                TwoRowLayout(data, bb, st, zone, locale, spec)
+                TwoRowLayout(data, bb, st, zone, spec)
             }
         }
     }
@@ -143,7 +141,6 @@ private fun TwoRowLayout(
     bodyBattery: List<TimelinePoint>,
     stress: List<TimelinePoint>,
     zoneId: ZoneId,
-    locale: Locale,
     spec: AdaptiveLayoutSpec,
 ) {
     val labels = batteryStressPresentation(data.bodyBattery, data.stress)
@@ -167,10 +164,7 @@ private fun TwoRowLayout(
     }
     ActivityStrip(
         activity = data.lastActivity,
-        zoneId = zoneId,
-        locale = locale,
         heightDp = spec.activityDp.dp,
-        showSecondaryDetails = spec.showActivitySecondaryDetails,
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
         chartWidthDp = (spec.contentWidthDp - 12f).dp,
@@ -354,10 +348,7 @@ private fun ActivityHrChartImage(
 @Composable
 private fun ActivityStrip(
     activity: LastActivity?,
-    zoneId: ZoneId,
-    locale: Locale,
     heightDp: Dp,
-    showSecondaryDetails: Boolean,
     showHrChart: Boolean,
     hrChartHeightDp: Dp,
     chartWidthDp: Dp,
@@ -392,40 +383,11 @@ private fun ActivityStrip(
                 maxLines = 1,
                 modifier = GlanceModifier.defaultWeight(),
             )
-        }
-        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = buildString {
-                    append(formatLocalTime(activity.startedAt, zoneId, locale))
-                    append("  ")
-                    append(formatDuration(activity.durationSeconds))
-                    append("  ")
-                    append(formatDistanceKm(activity.distanceMeters))
-                    append("  ")
-                    append(activityPrimaryMetric(activity))
-                    append("  ")
-                    append(formatCalories(activity.calories))
-                },
-                style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 8.sp),
-                maxLines = 2,
-                modifier = GlanceModifier.defaultWeight(),
-            )
             if (activity.maxHeartRate != null) {
                 Spacer(GlanceModifier.width(4.dp))
                 Text(
                     text = "Max HR ${formatHr(activity.maxHeartRate)}",
                     style = TextStyle(color = ColorProvider(Color.White), fontSize = 9.sp, fontWeight = FontWeight.Bold),
-                    maxLines = 1,
-                )
-            }
-        }
-        if (showSecondaryDetails) {
-            val details = activityDetailPairs(activity, rich = true)
-                .filterNot { it.first == "Max HR" }
-            if (details.isNotEmpty()) {
-                Text(
-                    text = details.joinToString("  ") { "${it.first}:${it.second}" },
-                    style = TextStyle(color = ColorProvider(Color(0xFFB0BEC5)), fontSize = 8.sp),
                     maxLines = 1,
                 )
             }
