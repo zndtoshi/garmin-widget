@@ -66,14 +66,17 @@ private fun WidgetContent(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(ColorProvider(Color(0xFF102A32)))
-            .clickable(actionRunCallback<OpenGarminAction>())
             .padding(12.dp),
     ) {
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = GlanceModifier.defaultWeight()) {
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .clickable(actionRunCallback<OpenGarminAction>()),
+            ) {
                 Text(
                     text = "GARMIN",
                     style = TextStyle(
@@ -98,39 +101,45 @@ private fun WidgetContent(
         }
 
         Spacer(modifier = GlanceModifier.height(8.dp))
-        if (data == null) {
-            Text(
-                text = statusMessage(status),
-                style = TextStyle(color = ColorProvider(Color(0xFFD6E2E5)), fontSize = 13.sp),
-            )
-        } else {
-            MetricRow(
-                firstLabel = "Sleep",
-                firstValue = data.sleepScore?.toString() ?: "—",
-                secondLabel = "Battery",
-                secondValue = data.bodyBattery?.toString() ?: "—",
-                thirdLabel = "Readiness",
-                thirdValue = data.trainingReadiness?.toString() ?: "—",
-            )
-            if (isExpanded) {
-                Spacer(modifier = GlanceModifier.height(8.dp))
+        Column(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .clickable(actionRunCallback<OpenGarminAction>()),
+        ) {
+            if (data == null) {
+                Text(
+                    text = statusMessage(status),
+                    style = TextStyle(color = ColorProvider(Color(0xFFD6E2E5)), fontSize = 13.sp),
+                )
+            } else {
                 MetricRow(
-                    firstLabel = "HRV",
-                    firstValue = data.overnightHrv?.toString() ?: "—",
-                    secondLabel = "Stress",
-                    secondValue = data.stress?.toString() ?: "—",
-                    thirdLabel = "Resting HR",
-                    thirdValue = data.restingHeartRate?.toString() ?: "—",
+                    firstLabel = "Sleep",
+                    firstValue = data.sleepScore?.toString() ?: "—",
+                    secondLabel = "Battery",
+                    secondValue = data.bodyBattery?.toString() ?: "—",
+                    thirdLabel = "Readiness",
+                    thirdValue = data.trainingReadiness?.toString() ?: "—",
+                )
+                if (isExpanded) {
+                    Spacer(modifier = GlanceModifier.height(8.dp))
+                    MetricRow(
+                        firstLabel = "HRV",
+                        firstValue = data.overnightHrv?.toString() ?: "—",
+                        secondLabel = "Stress",
+                        secondValue = data.stress?.toString() ?: "—",
+                        thirdLabel = "Resting HR",
+                        thirdValue = data.restingHeartRate?.toString() ?: "—",
+                    )
+                }
+                Spacer(modifier = GlanceModifier.height(6.dp))
+                Text(
+                    text = footer(data, status),
+                    style = TextStyle(
+                        color = ColorProvider(if (data.stale) Color(0xFFFFC46B) else Color(0xFF9FB5BB)),
+                        fontSize = 10.sp,
+                    ),
                 )
             }
-            Spacer(modifier = GlanceModifier.height(6.dp))
-            Text(
-                text = footer(data, status),
-                style = TextStyle(
-                    color = ColorProvider(if (data.stale) Color(0xFFFFC46B) else Color(0xFF9FB5BB)),
-                    fontSize = 10.sp,
-                ),
-            )
         }
     }
 }

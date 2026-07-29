@@ -29,10 +29,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkManager
 import com.zndtoshi.garminwidget.data.SettingsStore
+import com.zndtoshi.garminwidget.data.WidgetStore
+import com.zndtoshi.garminwidget.ui.refreshResultText
 import com.zndtoshi.garminwidget.widget.GarminWidgetReceiver
 import com.zndtoshi.garminwidget.work.RefreshScheduler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,7 +115,29 @@ private fun ConfigurationScreen(
                 }.onSuccess {
                     token = ""
                     message = "Saved securely. Refreshing the widget…"
-                    scope.launch { RefreshScheduler.enqueue(context) }
+                    scope.launch {
+                        val requestId = RefreshScheduler.enqueue(context)
+                        val refreshCompleted: Boolean = withContext(Dispatchers.IO) {
+                            val deadlineMs = System.currentTimeMillis() + 45_000L
+                            while (System.currentTimeMillis() < deadlineMs) {
+                                val workInfo = WorkManager.getInstance(context)
+                                    .getWorkInfoById(requestId)
+                                    .get()
+                                if (workInfo?.state?.isFinished == true) {
+                                    return@withContext true
+                                }
+                                delay(200)
+                            }
+                            false
+                        }
+
+                        if (!refreshCompleted) {
+                            message = "Refresh is still running. Check the widget again shortly."
+                            return@launch
+                        }
+
+                        message = refreshResultText(WidgetStore(context).read().status)
+                    }
                 }.onFailure {
                     message = it.message ?: "Could not save configuration."
                 }

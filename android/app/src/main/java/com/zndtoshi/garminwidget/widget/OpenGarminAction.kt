@@ -3,6 +3,7 @@ package com.zndtoshi.garminwidget.widget
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.content.pm.PackageManager
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
@@ -13,8 +14,20 @@ class OpenGarminAction : ActionCallback {
         glanceId: GlanceId,
         parameters: ActionParameters,
     ) {
-        val intent = context.packageManager.getLaunchIntentForPackage(GARMIN_CONNECT_PACKAGE)
-            ?: Intent(Intent.ACTION_VIEW, Uri.parse(GARMIN_CONNECT_URL))
+        val packageManager = context.packageManager
+        val hasGarminConnect = runCatching {
+            packageManager.getPackageInfo(GARMIN_CONNECT_PACKAGE, PackageManager.GET_ACTIVITIES)
+            true
+        }.getOrElse { false }
+        val intent = if (hasGarminConnect) {
+            packageManager.getLaunchIntentForPackage(GARMIN_CONNECT_PACKAGE)
+                ?: Intent(Intent.ACTION_MAIN).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    `package` = GARMIN_CONNECT_PACKAGE
+                }
+        } else {
+            Intent(Intent.ACTION_VIEW, Uri.parse(GARMIN_CONNECT_URL))
+        }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
     }
