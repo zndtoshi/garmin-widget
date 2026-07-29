@@ -139,12 +139,12 @@ internal object LayoutMetrics {
             .coerceIn(16, 110)
             .coerceAtLeast(MIN_ACTIVITY_HR_CHART_DP.coerceAtMost(activity / 3))
 
-        val sleepRing = min(panelWidth - 18f, (health - 27).toFloat())
+        val sleepRing = min(panelWidth - 28f, (health - 35).toFloat())
             .coerceIn(MIN_SLEEP_RING_DP.toFloat(), 110f)
-        val graphWidth = (panelWidth - 12f).coerceIn(56f, 120f)
-        val hrvHeight = (health - 42).toFloat()
+        val graphWidth = (panelWidth - 22f).coerceIn(56f, 120f)
+        val hrvHeight = (health - 50).toFloat()
             .coerceIn(MIN_HRV_GRAPH_HEIGHT_DP.toFloat(), 90f)
-        val panelChartHeight = (health - 41).toFloat()
+        val panelChartHeight = (health - 49).toFloat()
             .coerceIn(MIN_PANEL_CHART_HEIGHT_DP.toFloat(), 90f)
 
         return AdaptiveLayoutSpec(
