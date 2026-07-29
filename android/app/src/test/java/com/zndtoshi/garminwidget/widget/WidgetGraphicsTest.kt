@@ -243,14 +243,14 @@ class WidgetGraphicsTest {
     @Test
     fun `activity hr line is grey below 95 percent and red at peaks`() {
         val maxHr = 200
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(100, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(120, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(150, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(189, maxHr))
+        assertEquals(HR_NEUTRAL_WHITE, heartRateZoneColorArgb(100, maxHr))
+        assertEquals(HR_NEUTRAL_WHITE, heartRateZoneColorArgb(120, maxHr))
+        assertEquals(HR_NEUTRAL_WHITE, heartRateZoneColorArgb(150, maxHr))
+        assertEquals(HR_NEUTRAL_WHITE, heartRateZoneColorArgb(189, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(190, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(200, maxHr))
         assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(220, maxHr))
-        assertEquals(HR_NEUTRAL_GRAY, activityHrDiffusionColorArgb())
+        assertEquals(HR_NEUTRAL_WHITE, activityHrDiffusionColorArgb())
         assertTrue(activityHrDiffusionColorArgb() != HR_HIGH_RED)
     }
 

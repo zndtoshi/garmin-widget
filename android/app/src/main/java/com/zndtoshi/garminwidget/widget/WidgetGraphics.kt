@@ -975,10 +975,10 @@ internal fun buildActivityHrChartGeometry(
     return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
-internal val HR_NEUTRAL_GRAY = 0xFF737B82.toInt()
+internal val HR_NEUTRAL_WHITE = 0xFFFFFFFF.toInt()
 internal val HR_HIGH_RED = 0xFFF44336.toInt()
 
-internal fun activityHrDiffusionColorArgb(): Int = HR_NEUTRAL_GRAY
+internal fun activityHrDiffusionColorArgb(): Int = HR_NEUTRAL_WHITE
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
 internal fun resolveActivityHrCeiling(
@@ -1012,7 +1012,7 @@ internal fun lerpColorArgb(from: Int, to: Int, t: Float): Int {
 internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int {
     val ceiling = maxHr.coerceAtLeast(1)
     val ratio = heartRate.toFloat() / ceiling.toFloat()
-    return if (ratio >= 0.95f) HR_HIGH_RED else HR_NEUTRAL_GRAY
+    return if (ratio >= 0.95f) HR_HIGH_RED else HR_NEUTRAL_WHITE
 }
 
 /** Target ~1.25dp stroke at render scale 2 → ~2.5px. */
