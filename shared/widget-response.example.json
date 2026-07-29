@@ -78,7 +78,19 @@
     "averageSpeedMetersPerSecond": 2.13,
     "aerobicTrainingEffect": 3.2,
     "anaerobicTrainingEffect": 1.1,
-    "trainingLoad": 85.0
+    "trainingLoad": 85.0,
+    "heartRateTimeline": [
+      {"elapsedSeconds": 0, "heartRate": 112},
+      {"elapsedSeconds": 30, "heartRate": 138},
+      {"elapsedSeconds": 60, "heartRate": 145},
+      {"elapsedSeconds": 90, "heartRate": 152},
+      {"elapsedSeconds": 120, "heartRate": 160},
+      {"elapsedSeconds": 150, "heartRate": 168},
+      {"elapsedSeconds": 180, "heartRate": 172},
+      {"elapsedSeconds": 210, "heartRate": 165},
+      {"elapsedSeconds": 240, "heartRate": 158},
+      {"elapsedSeconds": 270, "heartRate": 150}
+    ]
   },
   "garminSyncAt": "2026-07-28T05:35:00Z",
   "refreshedAt": "2026-07-28T05:36:04Z",

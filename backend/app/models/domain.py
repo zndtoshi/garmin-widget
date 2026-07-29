@@ -30,6 +30,13 @@ class TimelinePointInternal(BaseModel):
     value: int
 
 
+class ActivityHeartRatePointInternal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    elapsed_seconds: int
+    heart_rate: int
+
+
 class LastActivityInternal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -47,6 +54,7 @@ class LastActivityInternal(BaseModel):
     aerobic_training_effect: float | None = None
     anaerobic_training_effect: float | None = None
     training_load: float | None = None
+    heart_rate_timeline: list[ActivityHeartRatePointInternal] | None = None
 
 
 class DailyMetrics(BaseModel):

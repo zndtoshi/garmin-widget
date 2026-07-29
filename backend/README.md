@@ -19,8 +19,8 @@ Private FastAPI service for the `garmin-widget` Android client.
 - Local Garmin authentication/session lifecycle under `app/garmin/`
 - Filesystem session persistence under `DATA_DIR/garmin/garmin_tokens.json`
 - Garmin metrics adapter + internal/public models + normalization
-- **Expanded response contract (Phase 8A)**: additive nullable fields — `sleepStages`, `hrvTrend` (bounded 7-day, initial backfill + same-day reuse), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48), `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; local-only timestamps are ignored). All backward-compatible with `schemaVersion=1`.
-- **Call budget**: initial expanded refresh ≤ 15 Garmin calls (9 standard + up to 6 historical HRV); ordinary same-day refresh = 9 calls (1 current HRV, no historical refetch).
+- **Expanded response contract (Phase 8A)**: additive nullable fields — `sleepStages`, `hrvTrend` (bounded 7-day, initial backfill + same-day reuse), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48), `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; local-only timestamps are ignored). Optional additive `lastActivity.heartRateTimeline` (max 48 `{elapsedSeconds, heartRate}` points) is fetched via a transient activity-details call when an activity ID exists; IDs/GPS/raw details are never exposed. All backward-compatible with `schemaVersion=1`.
+- **Call budget**: without activity details, initial expanded refresh ≤ 15 Garmin calls and ordinary same-day refresh = 9 calls. With a usable latest-activity ID, budgets become ≤ **16** / **10**.
 - Filesystem persistence for one atomic latest-widget snapshot under `DATA_DIR/widget/`
 - Process-scoped refresh orchestration with cooldown, lock/deduplication, and stale-cache fallback
 - Render-compatible container entrypoint (`/app/.venv/bin/python -m app.server`) honoring `PORT` with one Uvicorn worker and proxy headers disabled

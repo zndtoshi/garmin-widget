@@ -205,9 +205,9 @@ The widget snapshot now includes additive nullable premium fields alongside the 
 - **`sleepStages`**: deep/light/REM/awake durations (negative values rejected at extraction).
 - **`hrvTrend`**: bounded rolling 7-day window (max 7 entries, oldest-first). Initial backfill fetches up to 6 historical HRV calls; same-day refreshes reuse the cached trend and fetch only the current day.
 - **`bodyBatteryTimeline`** / **`stressTimeline`**: intraday sorted/deduped points with values clamped to 0–100 and downsampled to max 48 entries. Duplicate timestamps prefer the last valid sample.
-- **`lastActivity`**: most recent activity. `startTimeGMT` is the trusted UTC source and may be parsed from either a naive GMT string or an offset-bearing timestamp. `startTimeLocal` is ignored when GMT is absent, so local-only timestamps are never mislabeled with `Z`. Activities with no recognized public fields return `null`.
+- **`lastActivity`**: most recent activity. `startTimeGMT` is the trusted UTC source and may be parsed from either a naive GMT string or an offset-bearing timestamp. `startTimeLocal` is ignored when GMT is absent, so local-only timestamps are never mislabeled with `Z`. Activities with no recognized public fields return `null`. Optional `heartRateTimeline` (max 48 chronological `{elapsedSeconds, heartRate}` points) is derived from a transient `get_activity_details(..., maxpoly=0)` fetch when a usable activity ID exists; activity IDs, GPS/route polylines, and raw detail channels are never serialized. Without a usable ID, summary activity still succeeds and the timeline is omitted. Call budgets become 16/10 with details, otherwise 15/9.
 
-The snapshot persists the complete expanded payload including trend/timelines/activity, surviving repository reload and service restarts.
+The snapshot persists the complete expanded payload including trend/timelines/activity, surviving repository reload and service restarts. The activity HR timeline extension is implemented locally for Phase 8B and is **not claimed deployed** until merged and live-verified.
 
 ## Operational risk
 

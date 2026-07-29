@@ -31,15 +31,39 @@
         </activity>
 
         <receiver
+            android:name=".widget.GarminCompactWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_name_compact">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/garmin_widget_info_compact" />
+        </receiver>
+
+        <receiver
             android:name=".widget.GarminWidgetReceiver"
             android:exported="true"
-            android:label="@string/widget_name">
+            android:label="@string/widget_name_wide">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/garmin_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.GarminLargeWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_name_large">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/garmin_widget_info_large" />
         </receiver>
     </application>
 

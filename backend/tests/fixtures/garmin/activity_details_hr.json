@@ -1,0 +1,20 @@
+{
+  "metricDescriptors": [
+    {"key": "sumElapsedDuration", "metricsIndex": 0},
+    {"key": "directHeartRate", "metricsIndex": 1},
+    {"key": "directLatitude", "metricsIndex": 2},
+    {"key": "directLongitude", "metricsIndex": 3}
+  ],
+  "activityDetailMetrics": [
+    {"metrics": [0, 112, 44.1, 26.1]},
+    {"metrics": [30, 138, 44.11, 26.11]},
+    {"metrics": [60, 145, 44.12, 26.12]},
+    {"metrics": [90, 152, 44.13, 26.13]},
+    {"metrics": [120, 160, 44.14, 26.14]},
+    {"metrics": [150, 168, 44.15, 26.15]},
+    {"metrics": [180, 172, 44.16, 26.16]},
+    {"metrics": [210, 165, 44.17, 26.17]},
+    {"metrics": [240, 158, 44.18, 26.18]},
+    {"metrics": [270, 150, 44.19, 26.19]}
+  ]
+}
