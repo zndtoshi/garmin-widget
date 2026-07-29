@@ -241,36 +241,31 @@ class WidgetGraphicsTest {
     }
 
     @Test
-    fun `hr zone colors progress continuously from green to red`() {
+    fun `activity hr colors stay neutral below 90 percent and red at peaks`() {
         val maxHr = 200
-        assertEquals(HR_ZONE_GREEN, heartRateZoneColorArgb(140, maxHr)) // 70%
-        assertEquals(HR_ZONE_GREEN, heartRateZoneColorArgb(100, maxHr)) // below 70%
-        val midGreenYellow = heartRateZoneColorArgb(150, maxHr) // 75%
-        assertTrue(midGreenYellow != HR_ZONE_GREEN)
-        assertTrue(midGreenYellow != HR_ZONE_YELLOW)
-        assertEquals(HR_ZONE_YELLOW, heartRateZoneColorArgb(160, maxHr)) // 80%
-        val midYellowOrange = heartRateZoneColorArgb(170, maxHr) // 85%
-        assertTrue(midYellowOrange != HR_ZONE_YELLOW)
-        assertTrue(midYellowOrange != HR_ZONE_ORANGE)
-        assertEquals(HR_ZONE_ORANGE, heartRateZoneColorArgb(180, maxHr)) // 90%
-        val midOrangeRed = heartRateZoneColorArgb(190, maxHr) // 95%
-        assertTrue(midOrangeRed != HR_ZONE_ORANGE)
-        assertTrue(midOrangeRed != HR_ZONE_RED)
-        assertEquals(HR_ZONE_RED, heartRateZoneColorArgb(200, maxHr))
-        assertEquals(HR_ZONE_RED, heartRateZoneColorArgb(220, maxHr))
+        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(100, maxHr))
+        assertEquals(HR_NEUTRAL_GRAY, heartRateZoneColorArgb(120, maxHr))
+        val neutralMid = heartRateZoneColorArgb(150, maxHr)
+        assertTrue(neutralMid != HR_NEUTRAL_GRAY)
+        assertTrue(neutralMid != HR_NEUTRAL_WHITE)
+        val nearThreshold = heartRateZoneColorArgb(179, maxHr)
+        assertTrue(nearThreshold != HR_HIGH_RED)
+        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(180, maxHr))
+        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(200, maxHr))
+        assertEquals(HR_HIGH_RED, heartRateZoneColorArgb(220, maxHr))
 
-        // Continuity near thresholds: adjacent samples must not jump across zones abruptly.
-        val justBelow80 = heartRateZoneColorArgb(159, maxHr)
-        val justAbove80 = heartRateZoneColorArgb(161, maxHr)
-        val y80 = heartRateZoneColorArgb(160, maxHr)
+        // The neutral range progresses smoothly from grey toward white.
+        val justBelow75 = heartRateZoneColorArgb(149, maxHr)
+        val justAbove75 = heartRateZoneColorArgb(151, maxHr)
+        val at75 = heartRateZoneColorArgb(150, maxHr)
         fun channelDelta(a: Int, b: Int): Int {
             val dr = kotlin.math.abs(((a shr 16) and 0xff) - ((b shr 16) and 0xff))
             val dg = kotlin.math.abs(((a shr 8) and 0xff) - ((b shr 8) and 0xff))
             val db = kotlin.math.abs((a and 0xff) - (b and 0xff))
             return dr + dg + db
         }
-        assertTrue(channelDelta(justBelow80, y80) < 80)
-        assertTrue(channelDelta(justAbove80, y80) < 80)
+        assertTrue(channelDelta(justBelow75, at75) < 40)
+        assertTrue(channelDelta(justAbove75, at75) < 40)
     }
 
     @Test
@@ -483,11 +478,11 @@ class WidgetGraphicsTest {
         assertTrue(activityHrDiffusionExtendsToBaseline(nearBaselineY, depth, bottom))
         assertEquals(bottom, activityHrDiffusionBottomY(nearBaselineY, depth, bottom), 0.01f)
 
-        val green = heartRateZoneColorArgb(120, 200)
+        val neutral = heartRateZoneColorArgb(120, 200)
         val red = heartRateZoneColorArgb(200, 200)
-        assertEquals(activityHrDiffusionStartAlpha(), argbWithAlpha(green, activityHrDiffusionStartAlpha()) ushr 24)
+        assertEquals(activityHrDiffusionStartAlpha(), argbWithAlpha(neutral, activityHrDiffusionStartAlpha()) ushr 24)
         assertEquals(0, argbWithAlpha(red, 0) ushr 24)
-        assertEquals(green and 0x00FFFFFF, argbWithAlpha(green, activityHrDiffusionStartAlpha()) and 0x00FFFFFF)
-        assertTrue(green != red)
+        assertEquals(neutral and 0x00FFFFFF, argbWithAlpha(neutral, activityHrDiffusionStartAlpha()) and 0x00FFFFFF)
+        assertTrue(neutral != red)
     }
 }

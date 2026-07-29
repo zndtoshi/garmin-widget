@@ -975,10 +975,9 @@ internal fun buildActivityHrChartGeometry(
     return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
 }
 
-internal val HR_ZONE_GREEN = 0xFF4CAF50.toInt()
-internal val HR_ZONE_YELLOW = 0xFFFFEB3B.toInt()
-internal val HR_ZONE_ORANGE = 0xFFFF9800.toInt()
-internal val HR_ZONE_RED = 0xFFF44336.toInt()
+internal val HR_NEUTRAL_GRAY = 0xFF9AA0A6.toInt()
+internal val HR_NEUTRAL_WHITE = 0xFFF5F7FA.toInt()
+internal val HR_HIGH_RED = 0xFFF44336.toInt()
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
 internal fun resolveActivityHrCeiling(
@@ -1006,18 +1005,16 @@ internal fun lerpColorArgb(from: Int, to: Int, t: Float): Int {
 }
 
 /**
- * Continuous Garmin-inspired HR color from ratio of sample to activity max:
- * ≤70% green, 70–80% green→yellow, 80–90% yellow→orange, 90–100%+ orange→red.
+ * Neutral grey-to-white activity line below 90% of max HR. Only samples at
+ * 90% or above use the high-intensity red treatment.
  */
 internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int {
     val ceiling = maxHr.coerceAtLeast(1)
     val ratio = heartRate.toFloat() / ceiling.toFloat()
     return when {
-        ratio <= 0.70f -> HR_ZONE_GREEN
-        ratio <= 0.80f -> lerpColorArgb(HR_ZONE_GREEN, HR_ZONE_YELLOW, (ratio - 0.70f) / 0.10f)
-        ratio <= 0.90f -> lerpColorArgb(HR_ZONE_YELLOW, HR_ZONE_ORANGE, (ratio - 0.80f) / 0.10f)
-        ratio <= 1.00f -> lerpColorArgb(HR_ZONE_ORANGE, HR_ZONE_RED, (ratio - 0.90f) / 0.10f)
-        else -> HR_ZONE_RED
+        ratio <= 0.60f -> HR_NEUTRAL_GRAY
+        ratio < 0.90f -> lerpColorArgb(HR_NEUTRAL_GRAY, HR_NEUTRAL_WHITE, (ratio - 0.60f) / 0.30f)
+        else -> HR_HIGH_RED
     }
 }
 
