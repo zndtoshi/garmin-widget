@@ -470,11 +470,14 @@ internal fun drawHrvGraphBitmap(
     val markerSize = slotSpacing?.let { min(markerBaseSize, it * 1.3f) } ?: markerBaseSize
     for (slot in geometry.slots) {
         val y = slot.y
-        if (y == null) continue
+        if (y == null || !shouldDrawHrvMarker(slot.marker)) continue
         drawHrvMarkerOnCanvas(canvas, slot.marker, slot.x, y, markerSize)
     }
     return bmp
 }
+
+internal fun shouldDrawHrvMarker(kind: HrvMarkerKind): Boolean =
+    kind != HrvMarkerKind.NEUTRAL
 
 private fun drawHrvMarkerOnCanvas(canvas: Canvas, kind: HrvMarkerKind, cx: Float, cy: Float, size: Float) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }

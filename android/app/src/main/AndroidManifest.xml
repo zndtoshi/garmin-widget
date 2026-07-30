@@ -10,6 +10,7 @@
     </queries>
 
     <application
+        android:name=".GarminWidgetApplication"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
@@ -20,6 +21,16 @@
         android:theme="@style/Theme.GarminWidget"
         android:usesCleartextTraffic="false"
         tools:targetApi="s">
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                tools:node="remove" />
+        </provider>
 
         <activity
             android:name=".MainActivity"

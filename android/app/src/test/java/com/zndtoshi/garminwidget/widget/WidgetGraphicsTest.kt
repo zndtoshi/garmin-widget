@@ -302,6 +302,10 @@ class WidgetGraphicsTest {
         assertTrue(geo.plotTop >= 6f)
         assertTrue(hrvAxisLabelTextSizePx(geo.heightPx) <= 10f)
         assertTrue(hrvAxisLabelTextSizePx(geo.heightPx) < geo.heightPx * 0.15f)
+        assertFalse(shouldDrawHrvMarker(HrvMarkerKind.NEUTRAL))
+        assertTrue(shouldDrawHrvMarker(HrvMarkerKind.CIRCLE))
+        assertTrue(shouldDrawHrvMarker(HrvMarkerKind.SQUARE))
+        assertTrue(shouldDrawHrvMarker(HrvMarkerKind.TRIANGLE))
     }
 
     @Test
