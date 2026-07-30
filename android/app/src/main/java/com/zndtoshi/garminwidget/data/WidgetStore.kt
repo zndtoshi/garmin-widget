@@ -36,10 +36,21 @@ class WidgetStore(context: Context) {
             .apply()
     }
 
+    fun dismissedActivityIdentity(): String? =
+        prefs.getString(KEY_DISMISSED_ACTIVITY_IDENTITY, null)
+
+    fun dismissActivity(identity: String) {
+        if (identity.isBlank()) return
+        prefs.edit()
+            .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, identity)
+            .commit()
+    }
+
     companion object {
         const val PREFS_NAME = "garmin_widget_data"
         const val KEY_RAW_JSON = "raw_json"
         const val KEY_STATUS = "status"
+        const val KEY_DISMISSED_ACTIVITY_IDENTITY = "dismissed_activity_identity"
 
         internal fun decodeState(statusName: String?, rawJson: String?): State {
             val status = try {
@@ -58,3 +69,17 @@ class WidgetStore(context: Context) {
         }
     }
 }
+
+internal fun activityDismissalIdentity(activity: LastActivity): String {
+    activity.startedAt?.let { return "startedAt:$it" }
+    return listOf(
+        activity.name.orEmpty(),
+        activity.typeKey.orEmpty(),
+        activity.durationSeconds?.toString().orEmpty(),
+        activity.distanceMeters?.toString().orEmpty(),
+        activity.maxHeartRate?.toString().orEmpty(),
+    ).joinToString(separator = "|")
+}
+
+internal fun shouldShowActivity(activity: LastActivity?, dismissedIdentity: String?): Boolean =
+    activity != null && activityDismissalIdentity(activity) != dismissedIdentity

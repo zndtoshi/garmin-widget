@@ -300,6 +300,8 @@ class WidgetGraphicsTest {
         assertTrue(geo.yAtMax < geo.yAtMin)
         assertTrue(geo.showMidLabel)
         assertTrue(geo.plotTop >= 6f)
+        assertTrue(hrvAxisLabelTextSizePx(geo.heightPx) <= 10f)
+        assertTrue(hrvAxisLabelTextSizePx(geo.heightPx) < geo.heightPx * 0.15f)
     }
 
     @Test

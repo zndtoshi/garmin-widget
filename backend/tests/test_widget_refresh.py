@@ -15,7 +15,7 @@ from app.models.domain import (
     SleepStagesInternal,
     TimelinePointInternal,
 )
-from app.models.widget import RefreshStatus, WidgetResponse
+from app.models.widget import RefreshStatus, SleepStages, WidgetResponse
 from app.persistence.coordinator import clear_refresh_locks
 from app.persistence.errors import (
     CorruptCacheError,
@@ -448,6 +448,66 @@ def test_successful_live_refresh_persists_atomic_snapshot(tmp_path: Path) -> Non
     assert stored.payload.stale is False
     assert stored.last_successful_refresh_at == now
     assert provider.calls == [date(2026, 7, 28)]
+
+
+def test_early_morning_refresh_carries_sleep_and_hrv_until_garmin_publishes(
+    tmp_path: Path,
+) -> None:
+    previous_time = datetime(2026, 7, 29, 20, 0, tzinfo=UTC)
+    previous_payload = _sample_payload(refreshed_at=previous_time).model_copy(
+        update={
+            "date": date(2026, 7, 29),
+            "sleep_score": 63,
+            "sleep_duration_seconds": 23340,
+            "sleep_stages": SleepStages(
+                deepSeconds=6360,
+                lightSeconds=16380,
+                remSeconds=600,
+                awakeSeconds=120,
+            ),
+            "overnight_hrv": 43,
+            "hrv_status": "BALANCED",
+            "body_battery": 17,
+        }
+    )
+    repo = FilesystemWidgetSnapshotRepository(tmp_path)
+    repo.save(
+        WidgetSnapshot(
+            persistenceFormatVersion=1,
+            lastSuccessfulRefreshAt=previous_time,
+            payload=previous_payload,
+        )
+    )
+    provider = FakeMetricsProvider(
+        payload=DailyMetrics(
+            metric_date=date(2026, 7, 30),
+            sleep_score=None,
+            sleep_duration_seconds=None,
+            sleep_stages=None,
+            overnight_hrv=None,
+            hrv_status=None,
+            body_battery=90,
+            garmin_sync_at=datetime(2026, 7, 30, 3, 30, tzinfo=UTC),
+        )
+    )
+    service = _service(
+        tmp_path,
+        clock=FakeClock(datetime(2026, 7, 30, 3, 31, tzinfo=UTC)),
+        provider=provider,
+        cooldown_seconds=0,
+    )
+
+    result = service.refresh()
+
+    assert result.date == date(2026, 7, 30)
+    assert result.sleep_score == 63
+    assert result.sleep_duration_seconds == 23340
+    assert result.sleep_stages is not None
+    assert result.sleep_stages.deep_seconds == 6360
+    assert result.overnight_hrv == 43
+    assert result.hrv_status == "BALANCED"
+    assert result.body_battery == 90
+    assert repo.load().payload == result
 
 
 def test_failed_refresh_with_snapshot_returns_stale_fallback(tmp_path: Path) -> None:

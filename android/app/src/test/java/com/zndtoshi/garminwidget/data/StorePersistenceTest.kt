@@ -2,6 +2,7 @@ package com.zndtoshi.garminwidget.data
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -54,6 +55,42 @@ class StorePersistenceTest {
         assertEquals(1, state.data?.stressTimeline?.size)
         assertEquals("Morning Run", state.data?.lastActivity?.name)
         assertEquals("running", state.data?.lastActivity?.typeKey)
+    }
+
+    @Test
+    fun dismissed_activity_stays_hidden_until_a_new_activity_arrives() {
+        val first = LastActivity(
+            name = "Morning Run",
+            typeKey = "running",
+            startedAt = Instant.parse("2026-07-29T17:34:35Z"),
+        )
+        val next = first.copy(startedAt = Instant.parse("2026-07-30T05:10:00Z"))
+        val store = WidgetStore(context)
+
+        assertTrue(shouldShowActivity(first, store.dismissedActivityIdentity()))
+        store.dismissActivity(activityDismissalIdentity(first))
+
+        val persistedDismissal = WidgetStore(context).dismissedActivityIdentity()
+        assertEquals(activityDismissalIdentity(first), persistedDismissal)
+        assertFalse(shouldShowActivity(first, persistedDismissal))
+        assertTrue(shouldShowActivity(next, persistedDismissal))
+        assertFalse(shouldShowActivity(null, persistedDismissal))
+    }
+
+    @Test
+    fun activity_identity_has_stable_fallback_when_start_time_is_missing() {
+        val activity = LastActivity(
+            name = "Indoor Ride",
+            typeKey = "cycling",
+            durationSeconds = 1800,
+            distanceMeters = 12000.0,
+            maxHeartRate = 176,
+        )
+
+        assertEquals(
+            "Indoor Ride|cycling|1800|12000.0|176",
+            activityDismissalIdentity(activity),
+        )
     }
 
     @Test

@@ -13,6 +13,7 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
 import androidx.glance.action.clickable
+import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
@@ -44,6 +45,8 @@ import com.zndtoshi.garminwidget.data.SettingsStore
 import com.zndtoshi.garminwidget.data.TimelinePoint
 import com.zndtoshi.garminwidget.data.WidgetResponse
 import com.zndtoshi.garminwidget.data.WidgetStore
+import com.zndtoshi.garminwidget.data.activityDismissalIdentity
+import com.zndtoshi.garminwidget.data.shouldShowActivity
 import java.time.Instant
 import java.time.ZoneId
 
@@ -58,11 +61,13 @@ class GarminWidget : GlanceAppWidget() {
             val glanceState = currentState<Preferences>()
             val refreshRevision = glanceState[RefreshRevisionKey] ?: 0L
             val settings = SettingsStore(context)
-            val state = WidgetStore(context).read()
+            val store = WidgetStore(context)
+            val state = store.read()
             WidgetContent(
                 data = state.data,
                 status = resolveVisibleStatus(settings.isConfigured(), state.status, refreshRevision),
                 opacityPercent = settings.widgetOpacityPercent(),
+                dismissedActivityIdentity = store.dismissedActivityIdentity(),
             )
         }
     }
@@ -74,7 +79,12 @@ class GarminWidgetReceiver : GlanceAppWidgetReceiver() {
 }
 
 @Composable
-private fun WidgetContent(data: WidgetResponse?, status: LocalStatus, opacityPercent: Int) {
+private fun WidgetContent(
+    data: WidgetResponse?,
+    status: LocalStatus,
+    opacityPercent: Int,
+    dismissedActivityIdentity: String?,
+) {
     val spec = LayoutMetrics.fromSize(LocalSize.current)
     Column(
         modifier = GlanceModifier
@@ -91,7 +101,7 @@ private fun WidgetContent(data: WidgetResponse?, status: LocalStatus, opacityPer
             val bb = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone)
             val st = filterTimelineForResponseDate(data.stressTimeline, data.date, zone)
             Column(modifier = GlanceModifier.fillMaxWidth().clickable(actionRunCallback<OpenGarminAction>())) {
-                TwoRowLayout(data, bb, st, zone, spec)
+                TwoRowLayout(data, bb, st, zone, spec, dismissedActivityIdentity)
             }
         }
     }
@@ -141,6 +151,7 @@ private fun TwoRowLayout(
     stress: List<TimelinePoint>,
     zoneId: ZoneId,
     spec: AdaptiveLayoutSpec,
+    dismissedActivityIdentity: String?,
 ) {
     val dayRange = timelineDayRange(data.date, zoneId)
     Row(
@@ -160,8 +171,11 @@ private fun TwoRowLayout(
     if (spec.afterHealthSpacerDp > 0) {
         Spacer(GlanceModifier.height(spec.afterHealthSpacerDp.dp))
     }
+    val visibleActivity = data.lastActivity?.takeIf {
+        shouldShowActivity(it, dismissedActivityIdentity)
+    }
     ActivityStrip(
-        activity = data.lastActivity,
+        activity = visibleActivity,
         heightDp = spec.activityDp.dp,
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
@@ -400,11 +414,7 @@ private fun ActivityStrip(
     chartWidthDp: Dp,
 ) {
     if (activity == null) {
-        Text(
-            text = "No recent activity",
-            style = TextStyle(color = ColorProvider(Color(0xFF9FB5BB)), fontSize = 9.sp),
-            modifier = GlanceModifier.height(heightDp),
-        )
+        Spacer(GlanceModifier.fillMaxWidth().height(heightDp))
         return
     }
     val typeKey = activityTypeIcon(activity.typeKey)
@@ -451,6 +461,31 @@ private fun ActivityStrip(
                             style = TextStyle(
                                 color = ColorProvider(Color(0xFFF8FAFB)),
                                 fontSize = ACTIVITY_MAX_HR_FONT_SP.sp,
+                                fontWeight = FontWeight.Bold,
+                            ),
+                            maxLines = 1,
+                        )
+                    }
+                }
+                Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                    Box(
+                        modifier = GlanceModifier
+                            .width(22.dp)
+                            .height(18.dp)
+                            .clickable(
+                                actionRunCallback<DismissActivityAction>(
+                                    actionParametersOf(
+                                        DismissActivityIdentityKey to activityDismissalIdentity(activity),
+                                    ),
+                                ),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "×",
+                            style = TextStyle(
+                                color = ColorProvider(Color(0xFFD7DEE3)),
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                             ),
                             maxLines = 1,

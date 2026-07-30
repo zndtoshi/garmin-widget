@@ -388,6 +388,9 @@ internal fun yForHrvMs(valueMs: Int, plotTop: Float, plotBottom: Float): Float {
     return plotBottom - t * (plotBottom - plotTop)
 }
 
+internal fun hrvAxisLabelTextSizePx(heightPx: Int): Float =
+    (heightPx * 0.09f).coerceIn(8f, 10f)
+
 internal fun buildHrvGraphGeometry(
     widthPx: Int,
     heightPx: Int,
@@ -398,7 +401,7 @@ internal fun buildHrvGraphGeometry(
     val w = max(1, widthPx)
     val h = max(1, heightPx)
     val labelGutter = if (w >= 90) 24f else 18f
-    val labelSize = max(9f, h * 0.15f)
+    val labelSize = hrvAxisLabelTextSizePx(h)
     // Keep top/bottom padding so 80 / mid / 22 stay fully inside the bitmap.
     val plotLeft = labelGutter
     val plotTop = (labelSize * 0.85f).coerceAtLeast(8f)
@@ -445,7 +448,7 @@ internal fun drawHrvGraphBitmap(
     }
     val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF9FB5BB.toInt()
-        textSize = max(9f, geometry.heightPx * 0.15f)
+        textSize = hrvAxisLabelTextSizePx(geometry.heightPx)
     }
 
     fun drawGrid(y: Float) {
