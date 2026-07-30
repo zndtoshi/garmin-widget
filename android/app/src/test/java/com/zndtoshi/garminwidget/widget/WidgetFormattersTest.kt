@@ -43,8 +43,7 @@ class WidgetFormattersTest {
         assertTrue(spec.sleepRingDp >= LayoutMetrics.MIN_SLEEP_RING_DP)
         assertTrue(spec.hrvGraphWidthDp > 0f)
         assertTrue(spec.hrvGraphHeightDp > 0f)
-        assertTrue(spec.panelChartWidthDp > 0f)
-        assertTrue(spec.panelChartHeightDp > 0f)
+        assertTrue(spec.trainingReadinessRingDp >= LayoutMetrics.MIN_TRAINING_READINESS_RING_DP)
         assertTrue(spec.showActivityHrChart)
         assertTrue(spec.activityHrChartHeightDp > 0)
         assertTrue(spec.activityInternalBudgetFits)
@@ -65,7 +64,7 @@ class WidgetFormattersTest {
         assertTrue(healthPanelsUseCardBackground())
         assertEquals(0x0C, HEALTH_PANEL_CARD_COLOR ushr 24)
         assertTrue(spec.hrvInternalBudgetFits)
-        assertTrue(spec.bodyBatteryInternalBudgetFits)
+        assertTrue(spec.trainingReadinessInternalBudgetFits)
         assertTrue(spec.sleepInternalBudgetFits)
         assertTrue(spec.healthChartsBottomAligned)
         assertEquals(
@@ -74,7 +73,7 @@ class WidgetFormattersTest {
         )
         assertEquals(
             LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
-            spec.healthPanelContentHeightDp - (spec.panelChartHeightDp.roundToInt() + LayoutMetrics.BODY_BATTERY_HEADER_DP),
+            spec.healthPanelContentHeightDp - (spec.trainingReadinessRingDp.roundToInt() + LayoutMetrics.TRAINING_READINESS_HEADER_DP),
         )
         assertEquals(26f, sleepScoreFontSp(spec.widthDp), 0.01f)
         assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
@@ -83,6 +82,8 @@ class WidgetFormattersTest {
         assertTrue(sleep.durationInsideRing)
         assertFalse(sleep.durationBelowRing)
         assertTrue(spec.sleepRingDp + 0.01f >= spec.healthPanelContentHeightDp - LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP - 1f)
+        assertEquals(listOf("Sleep", "HRV Status", "Training Readiness"), topHealthPanelOrder())
+        assertFalse(widgetRendersBodyBatteryChart())
     }
 
     @Test
@@ -104,7 +105,7 @@ class WidgetFormattersTest {
             assertTrue(spec.activityDp > 0)
             assertTrue(spec.sleepRingDp > 0f)
             assertTrue(spec.hrvGraphHeightDp > 0f)
-            assertTrue(spec.panelChartHeightDp > 0f)
+            assertTrue(spec.trainingReadinessRingDp > 0f)
             assertTrue(spec.showActivityHrChart)
             assertTrue("activity budget for $size", spec.activityInternalBudgetFits)
             assertTrue(spec.activityAlignsWithHealthRowInsets)
@@ -113,7 +114,7 @@ class WidgetFormattersTest {
             assertFalse(spec.hasSleepLegend)
             assertTrue(spec.usesHealthCardBackground)
             assertTrue("hrv budget overflow for $size", spec.hrvInternalBudgetFits)
-            assertTrue("bb budget overflow for $size", spec.bodyBatteryInternalBudgetFits)
+            assertTrue("tr budget overflow for $size", spec.trainingReadinessInternalBudgetFits)
             assertTrue("sleep budget overflow for $size", spec.sleepInternalBudgetFits)
             assertTrue("charts not bottom-aligned for $size", spec.healthChartsBottomAligned)
         }
@@ -137,6 +138,43 @@ class WidgetFormattersTest {
         assertEquals("64", bb.trailingValue)
         assertEquals(null, bb.supportingLeft)
         assertFalse(bb.duplicatesTrailingBelow)
+
+        val tr = trainingReadinessHeaderPresentation(showTitle = true)
+        assertEquals("Training Readiness", tr.title)
+        assertEquals(null, tr.trailingValue)
+        assertEquals(null, tr.supportingLeft)
+        assertFalse(tr.duplicatesTrailingBelow)
+    }
+
+    @Test
+    fun `training readiness classification boundaries and colors`() {
+        assertEquals("Moderate", trainingReadinessClassification(68))
+        assertEquals("Poor", trainingReadinessClassification(0))
+        assertEquals("Poor", trainingReadinessClassification(24))
+        assertEquals("Low", trainingReadinessClassification(25))
+        assertEquals("Low", trainingReadinessClassification(49))
+        assertEquals("Moderate", trainingReadinessClassification(50))
+        assertEquals("Moderate", trainingReadinessClassification(74))
+        assertEquals("High", trainingReadinessClassification(75))
+        assertEquals("High", trainingReadinessClassification(94))
+        assertEquals("Prime", trainingReadinessClassification(95))
+        assertEquals("Prime", trainingReadinessClassification(100))
+        assertEquals("No data", trainingReadinessClassification(null))
+        assertEquals("—", trainingReadinessScoreLabel(null))
+        assertEquals("68", trainingReadinessScoreLabel(68))
+        assertEquals(0, clampTrainingReadiness(-12))
+        assertEquals(100, clampTrainingReadiness(140))
+        assertEquals(null, clampTrainingReadiness(null))
+        assertEquals("Training Readiness 68, Moderate", trainingReadinessContentDescription(68))
+        assertEquals("Training Readiness unavailable", trainingReadinessContentDescription(null))
+        assertEquals(0xFFF4514F.toInt(), WidgetPalette.readinessPoor)
+        assertEquals(0xFFFF8C32.toInt(), WidgetPalette.readinessLow)
+        assertEquals(0xFFF6C344.toInt(), WidgetPalette.readinessModerate)
+        assertEquals(0xFF35B85A.toInt(), WidgetPalette.readinessHigh)
+        assertEquals(0xFF8A63D2.toInt(), WidgetPalette.readinessPrime)
+        assertEquals(WidgetPalette.readinessModerate, trainingReadinessColorArgb(68))
+        assertEquals(WidgetPalette.neutral, trainingReadinessColorArgb(null))
+        assertTrue(trainingReadinessScoreFontSp(438f) > trainingReadinessClassificationFontSp(438f))
     }
 
     @Test
@@ -364,6 +402,10 @@ class WidgetFormattersTest {
         assertTrue(statusContentDescription(LocalStatus.READY).contains("ready"))
         assertEquals("Sleep panel icon", healthPanelIconContentDescription(HealthPanelIcon.SLEEP))
         assertEquals("HRV panel icon", healthPanelIconContentDescription(HealthPanelIcon.HRV))
-        assertEquals("Body Battery panel icon", healthPanelIconContentDescription(HealthPanelIcon.BODY_BATTERY))
+        assertEquals(
+            "Training Readiness panel icon",
+            healthPanelIconContentDescription(HealthPanelIcon.TRAINING_READINESS),
+        )
+        assertFalse(widgetRendersBodyBatteryChart())
     }
 }

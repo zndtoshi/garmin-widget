@@ -178,7 +178,7 @@ internal data class TopPanelGeometry(
         }
 }
 
-/** Equal horizontal allocations for Sleep / HRV / Body Battery panels. */
+/** Equal horizontal allocations for Sleep / HRV / Training Readiness panels. */
 internal fun equalTopPanelGeometry(contentWidthDp: Float, panelCount: Int = 3): TopPanelGeometry {
     require(panelCount > 0)
     val width = contentWidthDp / panelCount.toFloat()
@@ -283,6 +283,67 @@ internal fun bodyBatteryHeaderPresentation(
 )
 
 /**
+ * Training Readiness header: title only — score lives inside the ring, never in the header.
+ */
+internal fun trainingReadinessHeaderPresentation(showTitle: Boolean): HealthPanelHeaderPresentation =
+    HealthPanelHeaderPresentation(
+        title = if (showTitle) "Training Readiness" else null,
+        trailingValue = null,
+        supportingLeft = null,
+    )
+
+internal fun clampTrainingReadiness(score: Int?): Int? =
+    score?.coerceIn(0, 100)
+
+internal enum class TrainingReadinessLevel {
+    POOR,
+    LOW,
+    MODERATE,
+    HIGH,
+    PRIME,
+}
+
+internal fun trainingReadinessLevel(score: Int?): TrainingReadinessLevel? {
+    val clamped = clampTrainingReadiness(score) ?: return null
+    return when (clamped) {
+        in 0..24 -> TrainingReadinessLevel.POOR
+        in 25..49 -> TrainingReadinessLevel.LOW
+        in 50..74 -> TrainingReadinessLevel.MODERATE
+        in 75..94 -> TrainingReadinessLevel.HIGH
+        else -> TrainingReadinessLevel.PRIME
+    }
+}
+
+internal fun trainingReadinessClassification(score: Int?): String =
+    when (trainingReadinessLevel(score)) {
+        TrainingReadinessLevel.POOR -> "Poor"
+        TrainingReadinessLevel.LOW -> "Low"
+        TrainingReadinessLevel.MODERATE -> "Moderate"
+        TrainingReadinessLevel.HIGH -> "High"
+        TrainingReadinessLevel.PRIME -> "Prime"
+        null -> "No data"
+    }
+
+internal fun trainingReadinessScoreLabel(score: Int?): String =
+    clampTrainingReadiness(score)?.toString() ?: "—"
+
+internal fun trainingReadinessContentDescription(score: Int?): String {
+    val clamped = clampTrainingReadiness(score)
+    return if (clamped == null) {
+        "Training Readiness unavailable"
+    } else {
+        "Training Readiness $clamped, ${trainingReadinessClassification(clamped)}"
+    }
+}
+
+/** Ordered top health cards in the two-row widget. */
+internal fun topHealthPanelOrder(): List<String> =
+    listOf("Sleep", "HRV Status", "Training Readiness")
+
+/** Body Battery/stress combined chart is retained for tests/helpers but not composed. */
+internal fun widgetRendersBodyBatteryChart(): Boolean = false
+
+/**
  * Sleep card: no title/icon; duration sits inside the ring under the score
  * (no separate duration row below the ring).
  */
@@ -308,6 +369,21 @@ internal fun sleepDurationFontSp(widgetWidthDp: Float): Float = when {
     widgetWidthDp >= 400f -> 12f
     widgetWidthDp >= 300f -> 10f
     else -> 9f
+}
+
+/** Training Readiness score inside the ring. */
+internal fun trainingReadinessScoreFontSp(widgetWidthDp: Float): Float = when {
+    widgetWidthDp >= 400f -> 22f
+    widgetWidthDp >= 340f -> 18f
+    widgetWidthDp >= 280f -> 16f
+    else -> 14f
+}
+
+/** Classification under the readiness score inside the ring. */
+internal fun trainingReadinessClassificationFontSp(widgetWidthDp: Float): Float = when {
+    widgetWidthDp >= 400f -> 10f
+    widgetWidthDp >= 300f -> 9f
+    else -> 8f
 }
 
 internal fun hasAmbiguousMetricAbbreviation(labels: Collection<String>): Boolean =

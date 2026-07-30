@@ -43,8 +43,7 @@ internal data class AdaptiveLayoutSpec(
     val sleepRingDp: Float,
     val hrvGraphWidthDp: Float,
     val hrvGraphHeightDp: Float,
-    val panelChartWidthDp: Float,
-    val panelChartHeightDp: Float,
+    val trainingReadinessRingDp: Float,
     val activityHrChartHeightDp: Int,
     val showPanelTitles: Boolean,
     val showActivitySecondaryDetails: Boolean,
@@ -77,15 +76,15 @@ internal data class AdaptiveLayoutSpec(
     val hrvInternalBudgetFits: Boolean
         get() = hrvInternalUsedHeightDp <= healthPanelContentHeightDp
 
-    /** Header + combined chart + shared bottom inset. */
-    val bodyBatteryInternalUsedHeightDp: Int
-        get() = LayoutMetrics.BODY_BATTERY_HEADER_DP +
-            panelChartHeightDp.roundToInt() +
+    /** Header + readiness ring + shared bottom inset. */
+    val trainingReadinessInternalUsedHeightDp: Int
+        get() = LayoutMetrics.TRAINING_READINESS_HEADER_DP +
+            trainingReadinessRingDp.roundToInt() +
             LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP +
             LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2
 
-    val bodyBatteryInternalBudgetFits: Boolean
-        get() = bodyBatteryInternalUsedHeightDp <= healthPanelContentHeightDp
+    val trainingReadinessInternalBudgetFits: Boolean
+        get() = trainingReadinessInternalUsedHeightDp <= healthPanelContentHeightDp
 
     /** Sleep ring + shared bottom inset (no header / no below-ring duration row). */
     val sleepInternalUsedHeightDp: Int
@@ -111,13 +110,13 @@ internal data class AdaptiveLayoutSpec(
             LayoutMetrics.ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP ==
             LayoutMetrics.HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP
 
-    /** HRV and Body Battery charts share the same card-bottom inset and fill remaining height. */
+    /** HRV chart and Training Readiness ring share the same card-bottom inset and fill remaining height. */
     val healthChartsBottomAligned: Boolean
         get() = hrvInternalBudgetFits &&
-            bodyBatteryInternalBudgetFits &&
+            trainingReadinessInternalBudgetFits &&
             sleepInternalBudgetFits &&
             kotlin.math.abs(hrvInternalUsedHeightDp - healthPanelContentHeightDp) <= 1 &&
-            kotlin.math.abs(bodyBatteryInternalUsedHeightDp - healthPanelContentHeightDp) <= 1
+            kotlin.math.abs(trainingReadinessInternalUsedHeightDp - healthPanelContentHeightDp) <= 1
 
     val estimatedUsedHeightDp: Int
         get() = LayoutMetrics.OUTER_PADDING_DP * 2 +
@@ -142,17 +141,17 @@ internal object LayoutMetrics {
     const val MIN_ACTIVITY_ROW_DP = 64
     const val MIN_ACTIVITY_HR_CHART_DP = 24
     const val MIN_HRV_GRAPH_HEIGHT_DP = 24
-    const val MIN_PANEL_CHART_HEIGHT_DP = 22
     const val MIN_SLEEP_RING_DP = 36
+    const val MIN_TRAINING_READINESS_RING_DP = 32
     const val HRV_HEADER_DP = 14
     const val HRV_STATUS_DP = 12
-    const val BODY_BATTERY_HEADER_DP = 14
+    const val TRAINING_READINESS_HEADER_DP = 14
     /** Matches EqualPanel vertical padding so chart bottoms share one inset. */
     const val HEALTH_PANEL_VERTICAL_PADDING_DP = 2
     const val HEALTH_PANEL_HORIZONTAL_PADDING_DP = 3
     const val HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP = 4
     const val HEALTH_DATA_INNER_VERTICAL_PADDING_DP = 3
-    /** Shared bottom inset inside Sleep / HRV / Body Battery cards. */
+    /** Shared bottom inset inside Sleep / HRV / Training Readiness cards. */
     const val HEALTH_CARD_BOTTOM_INSET_DP = 2
 
     /** Aligns activity card outer edge with EqualPanel horizontal gutter. */
@@ -270,8 +269,13 @@ internal object LayoutMetrics {
         val innerVerticalPadding = HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2
         val hrvHeight = (healthPanelChartHeightDp(health, HRV_HEADER_DP, HRV_STATUS_DP) - innerVerticalPadding)
             .coerceIn(1f, contentH.toFloat())
-        val panelChartHeight = (healthPanelChartHeightDp(health, BODY_BATTERY_HEADER_DP, statusDp = 0) - innerVerticalPadding)
+        val trRingBudget = (healthPanelChartHeightDp(health, TRAINING_READINESS_HEADER_DP, statusDp = 0) - innerVerticalPadding)
             .coerceIn(1f, contentH.toFloat())
+        val trainingReadinessRing = min(
+            panelWidth - HEALTH_PANEL_HORIZONTAL_PADDING_DP * 2f - HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP * 2f,
+            trRingBudget,
+        ).coerceIn(1f, trRingBudget)
+            .coerceAtLeast(MIN_TRAINING_READINESS_RING_DP.toFloat().coerceAtMost(trRingBudget))
 
         return AdaptiveLayoutSpec(
             widthDp = width,
@@ -284,8 +288,7 @@ internal object LayoutMetrics {
             sleepRingDp = sleepRing,
             hrvGraphWidthDp = graphWidth,
             hrvGraphHeightDp = hrvHeight,
-            panelChartWidthDp = graphWidth,
-            panelChartHeightDp = panelChartHeight,
+            trainingReadinessRingDp = trainingReadinessRing,
             activityHrChartHeightDp = hrChart,
             showPanelTitles = showTitles,
             showActivitySecondaryDetails = showSecondary,
@@ -309,17 +312,17 @@ internal object LayoutMetrics {
 
     /** Approximate combined uncompressed bitmap payload for one two-row composition. */
     fun estimateWidgetBitmapBytes(): Long {
-        val ring = chartRenderSize(48f, 48f)
+        val sleepRing = chartRenderSize(48f, 48f)
+        val readinessRing = chartRenderSize(40f, 40f)
         val hrv = chartRenderSize(100f, 40f)
-        val panelChart = chartRenderSize(100f, 28f)
         val activityIcon = chartRenderSize(18f, 18f)
         val activityHr = chartRenderSize(320f, 36f)
         val panelIcon = chartRenderSize(14f, 14f)
         val refresh = chartRenderSize(18f, 18f)
         val status = chartRenderSize(10f, 10f)
-        return estimatedArgbBytes(ring.first, ring.second) +
+        return estimatedArgbBytes(sleepRing.first, sleepRing.second) +
+            estimatedArgbBytes(readinessRing.first, readinessRing.second) +
             estimatedArgbBytes(hrv.first, hrv.second) +
-            estimatedArgbBytes(panelChart.first, panelChart.second) +
             estimatedArgbBytes(activityIcon.first, activityIcon.second) +
             estimatedArgbBytes(activityHr.first, activityHr.second) +
             estimatedArgbBytes(panelIcon.first, panelIcon.second) * 3 +

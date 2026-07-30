@@ -125,6 +125,13 @@ internal object WidgetPalette {
     const val hrvOrange = 0xFFFF9800.toInt()
     const val hrvRed = 0xFFF44336.toInt()
     const val hrvGray = 0xFF90A4AE.toInt()
+    /** Training Readiness bands (Garmin Connect inspired). */
+    const val readinessPoor = 0xFFF4514F.toInt()
+    const val readinessLow = 0xFFFF8C32.toInt()
+    const val readinessModerate = 0xFFF6C344.toInt()
+    const val readinessHigh = 0xFF35B85A.toInt()
+    const val readinessPrime = 0xFF8A63D2.toInt()
+    const val readinessTrack = 0xFF455A64.toInt()
     /** @see ACTIVITY_HR_LINE_NORMAL */
     const val activityHr = 0xFFC8D0D6.toInt()
     const val activityHrFill = 0x4452616B
@@ -358,6 +365,165 @@ internal fun drawSleepRingBitmap(sizePx: Int, segments: List<RingSegment>): Bitm
     for (segment in segments) {
         paint.color = segment.color
         canvas.drawArc(rect, segment.startDegrees, segment.sweepDegrees, false, paint)
+    }
+    return bmp
+}
+
+/** Inclusive score bands for the Training Readiness multicolor scale. */
+internal data class TrainingReadinessBand(
+    val startScore: Int,
+    val endScore: Int,
+    val color: Int,
+) {
+    val units: Int get() = endScore - startScore + 1
+}
+
+internal val TRAINING_READINESS_BANDS: List<TrainingReadinessBand> = listOf(
+    TrainingReadinessBand(0, 24, WidgetPalette.readinessPoor),
+    TrainingReadinessBand(25, 49, WidgetPalette.readinessLow),
+    TrainingReadinessBand(50, 74, WidgetPalette.readinessModerate),
+    TrainingReadinessBand(75, 94, WidgetPalette.readinessHigh),
+    TrainingReadinessBand(95, 100, WidgetPalette.readinessPrime),
+)
+
+internal const val TRAINING_READINESS_RING_GAP_DEGREES = 3.5f
+
+internal data class TrainingReadinessRingGeometry(
+    val sizePx: Int,
+    val strokePx: Float,
+    val trackRect: RectF,
+    val segments: List<RingSegment>,
+    val markerAngleDegrees: Float?,
+    val markerX: Float?,
+    val markerY: Float?,
+    val markerRadiusPx: Float,
+)
+
+internal fun trainingReadinessColorArgb(score: Int?): Int {
+    val level = trainingReadinessLevel(score) ?: return WidgetPalette.neutral
+    return when (level) {
+        TrainingReadinessLevel.POOR -> WidgetPalette.readinessPoor
+        TrainingReadinessLevel.LOW -> WidgetPalette.readinessLow
+        TrainingReadinessLevel.MODERATE -> WidgetPalette.readinessModerate
+        TrainingReadinessLevel.HIGH -> WidgetPalette.readinessHigh
+        TrainingReadinessLevel.PRIME -> WidgetPalette.readinessPrime
+    }
+}
+
+internal fun buildTrainingReadinessRingSegments(score: Int?): List<RingSegment> {
+    if (clampTrainingReadiness(score) == null) {
+        return listOf(RingSegment(-90f, 360f, WidgetPalette.neutral))
+    }
+    val totalUnits = TRAINING_READINESS_BANDS.sumOf { it.units }.toFloat()
+    val gap = TRAINING_READINESS_RING_GAP_DEGREES
+    val available = 360f - gap * TRAINING_READINESS_BANDS.size
+    var cursor = -90f
+    return TRAINING_READINESS_BANDS.map { band ->
+        val sweep = (band.units / totalUnits) * available
+        val segment = RingSegment(cursor, sweep, band.color)
+        cursor += sweep + gap
+        segment
+    }
+}
+
+/**
+ * Maps a clamped readiness score onto the multicolor ring, excluding inter-band gaps.
+ * Score `0` sits at the start of Poor; `100` at the end of Prime.
+ */
+internal fun trainingReadinessMarkerAngleDegrees(score: Int): Float {
+    val clamped = clampTrainingReadiness(score) ?: 0
+    val totalUnits = TRAINING_READINESS_BANDS.sumOf { it.units }.toFloat()
+    val gap = TRAINING_READINESS_RING_GAP_DEGREES
+    val available = 360f - gap * TRAINING_READINESS_BANDS.size
+    var cursor = -90f
+    for (band in TRAINING_READINESS_BANDS) {
+        val sweep = (band.units / totalUnits) * available
+        if (clamped in band.startScore..band.endScore) {
+            val span = (band.endScore - band.startScore).coerceAtLeast(1)
+            val t = (clamped - band.startScore).toFloat() / span.toFloat()
+            return cursor + t * sweep
+        }
+        cursor += sweep + gap
+    }
+    return cursor
+}
+
+internal fun buildTrainingReadinessRingGeometry(sizePx: Int, score: Int?): TrainingReadinessRingGeometry {
+    val safe = sizePx.coerceAtLeast(1)
+    val stroke = max(8f, safe * 0.12f)
+    val inset = stroke
+    val trackRect = RectF(inset, inset, safe - inset, safe - inset)
+    val segments = buildTrainingReadinessRingSegments(score)
+    val clamped = clampTrainingReadiness(score)
+    val markerRadius = (stroke * 0.38f).coerceIn(2.5f, stroke * 0.5f)
+    if (clamped == null) {
+        return TrainingReadinessRingGeometry(
+            sizePx = safe,
+            strokePx = stroke,
+            trackRect = trackRect,
+            segments = segments,
+            markerAngleDegrees = null,
+            markerX = null,
+            markerY = null,
+            markerRadiusPx = markerRadius,
+        )
+    }
+    val angle = trainingReadinessMarkerAngleDegrees(clamped)
+    val cx = safe / 2f
+    val cy = safe / 2f
+    val radius = ((safe - inset * 2f) / 2f).coerceAtLeast(1f)
+    val rad = Math.toRadians(angle.toDouble())
+    // Canvas arcs: 0° = 3 o'clock, positive clockwise — same as drawArc.
+    val rawX = cx + radius * kotlin.math.cos(rad).toFloat()
+    val rawY = cy + radius * kotlin.math.sin(rad).toFloat()
+    val markerX = rawX.coerceIn(markerRadius, safe - markerRadius)
+    val markerY = rawY.coerceIn(markerRadius, safe - markerRadius)
+    return TrainingReadinessRingGeometry(
+        sizePx = safe,
+        strokePx = stroke,
+        trackRect = trackRect,
+        segments = segments,
+        markerAngleDegrees = angle,
+        markerX = markerX,
+        markerY = markerY,
+        markerRadiusPx = markerRadius,
+    )
+}
+
+internal fun drawTrainingReadinessRingBitmap(sizePx: Int, score: Int?): Bitmap {
+    val geo = buildTrainingReadinessRingGeometry(sizePx, score)
+    val bmp = Bitmap.createBitmap(geo.sizePx, geo.sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bmp)
+    val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeWidth = geo.strokePx
+        color = WidgetPalette.readinessTrack
+    }
+    canvas.drawArc(geo.trackRect, -90f, 360f, false, trackPaint)
+    val bandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeWidth = geo.strokePx
+    }
+    for (segment in geo.segments) {
+        bandPaint.color = segment.color
+        canvas.drawArc(geo.trackRect, segment.startDegrees, segment.sweepDegrees, false, bandPaint)
+    }
+    val mx = geo.markerX
+    val my = geo.markerY
+    if (mx != null && my != null) {
+        val markerFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.WHITE
+        }
+        val markerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = max(1f, geo.markerRadiusPx * 0.35f)
+            color = 0xFF101B2A.toInt()
+        }
+        canvas.drawCircle(mx, my, geo.markerRadiusPx, markerFill)
+        canvas.drawCircle(mx, my, geo.markerRadiusPx, markerStroke)
     }
     return bmp
 }
@@ -847,18 +1013,18 @@ internal fun activityIconPixelSignature(typeKey: String?, sizePx: Int = 48): Lon
 }
 
 /** Stable draw-plan tags proving health panel icons are geometrically distinct. */
-internal enum class HealthPanelIcon { SLEEP, HRV, BODY_BATTERY }
+internal enum class HealthPanelIcon { SLEEP, HRV, TRAINING_READINESS }
 
 internal fun healthPanelIconDrawPlan(kind: HealthPanelIcon): List<String> = when (kind) {
     HealthPanelIcon.SLEEP -> listOf("badge:indigo", "crescent-moon", "star-dot")
     HealthPanelIcon.HRV -> listOf("badge:green", "heart-outline", "pulse-notch")
-    HealthPanelIcon.BODY_BATTERY -> listOf("badge:cyan", "battery-body", "bolt")
+    HealthPanelIcon.TRAINING_READINESS -> listOf("badge:amber", "runner-torso", "stride")
 }
 
 internal fun healthPanelIconContentDescription(kind: HealthPanelIcon): String = when (kind) {
     HealthPanelIcon.SLEEP -> "Sleep panel icon"
     HealthPanelIcon.HRV -> "HRV panel icon"
-    HealthPanelIcon.BODY_BATTERY -> "Body Battery panel icon"
+    HealthPanelIcon.TRAINING_READINESS -> "Training Readiness panel icon"
 }
 
 internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitmap {
@@ -868,7 +1034,7 @@ internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitm
     val badge = when (kind) {
         HealthPanelIcon.SLEEP -> 0xFF5C6BC0.toInt()
         HealthPanelIcon.HRV -> 0xFF4CAF50.toInt()
-        HealthPanelIcon.BODY_BATTERY -> 0xFF4DD0E1.toInt()
+        HealthPanelIcon.TRAINING_READINESS -> 0xFFF6C344.toInt()
     }
     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = badge
@@ -903,18 +1069,14 @@ internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitm
             canvas.drawLine(safe * 0.5f, safe * 0.38f, safe * 0.58f, safe * 0.58f, ink)
             canvas.drawLine(safe * 0.58f, safe * 0.58f, safe * 0.68f, safe * 0.5f, ink)
         }
-        HealthPanelIcon.BODY_BATTERY -> {
-            canvas.drawRoundRect(RectF(safe * 0.22f, safe * 0.32f, safe * 0.72f, safe * 0.68f), safe * 0.08f, safe * 0.08f, ink)
-            canvas.drawRect(safe * 0.72f, safe * 0.42f, safe * 0.8f, safe * 0.58f, solid)
-            val bolt = Path()
-            bolt.moveTo(safe * 0.5f, safe * 0.34f)
-            bolt.lineTo(safe * 0.4f, safe * 0.52f)
-            bolt.lineTo(safe * 0.52f, safe * 0.52f)
-            bolt.lineTo(safe * 0.46f, safe * 0.68f)
-            bolt.lineTo(safe * 0.62f, safe * 0.46f)
-            bolt.lineTo(safe * 0.5f, safe * 0.46f)
-            bolt.close()
-            canvas.drawPath(bolt, solid)
+        HealthPanelIcon.TRAINING_READINESS -> {
+            // Compact runner silhouette: head + torso stride.
+            canvas.drawCircle(safe * 0.58f, safe * 0.28f, safe * 0.09f, solid)
+            canvas.drawLine(safe * 0.52f, safe * 0.38f, safe * 0.42f, safe * 0.58f, ink)
+            canvas.drawLine(safe * 0.42f, safe * 0.58f, safe * 0.34f, safe * 0.78f, ink)
+            canvas.drawLine(safe * 0.42f, safe * 0.58f, safe * 0.58f, safe * 0.78f, ink)
+            canvas.drawLine(safe * 0.5f, safe * 0.44f, safe * 0.68f, safe * 0.36f, ink)
+            canvas.drawLine(safe * 0.5f, safe * 0.44f, safe * 0.28f, safe * 0.52f, ink)
         }
     }
     return bmp

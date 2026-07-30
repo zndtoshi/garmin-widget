@@ -32,12 +32,18 @@ class ActivityIconSignatureTest {
         val plans = kinds.map { healthPanelIconDrawPlan(it) }
         assertEquals(3, plans.toSet().size)
         assertNotEquals(healthPanelIconDrawPlan(HealthPanelIcon.SLEEP), healthPanelIconDrawPlan(HealthPanelIcon.HRV))
-        assertNotEquals(healthPanelIconDrawPlan(HealthPanelIcon.HRV), healthPanelIconDrawPlan(HealthPanelIcon.BODY_BATTERY))
+        assertNotEquals(healthPanelIconDrawPlan(HealthPanelIcon.HRV), healthPanelIconDrawPlan(HealthPanelIcon.TRAINING_READINESS))
         kinds.forEach { kind ->
             assertTrue(healthPanelIconContentDescription(kind).isNotBlank())
             val bmp = drawHealthPanelIconBitmap(kind, 48)
             assertEquals(48, bmp.width)
             assertEquals(48, bmp.height)
         }
+        val readiness = drawTrainingReadinessRingBitmap(96, 68)
+        assertEquals(96, readiness.width)
+        assertEquals(96, readiness.height)
+        val muted = drawTrainingReadinessRingBitmap(64, null)
+        assertEquals(64, muted.width)
+        assertEquals(64, muted.height)
     }
 }

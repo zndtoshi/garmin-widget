@@ -487,4 +487,51 @@ class WidgetGraphicsTest {
         assertEquals(slate and 0x00FFFFFF, argbWithAlpha(slate, activityHrNormalDiffusionStartAlpha()) and 0x00FFFFFF)
         assertTrue(slate != peak)
     }
+
+    @Test
+    fun `training readiness ring uses proportional bands gaps and in-bounds markers`() {
+        val segments = buildTrainingReadinessRingSegments(68)
+        assertEquals(5, segments.size)
+        assertEquals(WidgetPalette.readinessPoor, segments[0].color)
+        assertEquals(WidgetPalette.readinessLow, segments[1].color)
+        assertEquals(WidgetPalette.readinessModerate, segments[2].color)
+        assertEquals(WidgetPalette.readinessHigh, segments[3].color)
+        assertEquals(WidgetPalette.readinessPrime, segments[4].color)
+        val totalUnits = TRAINING_READINESS_BANDS.sumOf { it.units }.toFloat()
+        val available = 360f - TRAINING_READINESS_RING_GAP_DEGREES * TRAINING_READINESS_BANDS.size
+        TRAINING_READINESS_BANDS.forEachIndexed { i, band ->
+            assertEquals((band.units / totalUnits) * available, segments[i].sweepDegrees, 0.05f)
+        }
+        assertTrue(TRAINING_READINESS_RING_GAP_DEGREES in 2f..6f)
+        val totalSweep = segments.sumOf { it.sweepDegrees.toDouble() }
+        assertEquals(available.toDouble(), totalSweep, 0.2)
+
+        val empty = buildTrainingReadinessRingSegments(null)
+        assertEquals(1, empty.size)
+        assertEquals(360f, empty.first().sweepDegrees, 0.01f)
+        assertEquals(WidgetPalette.neutral, empty.first().color)
+
+        listOf(0, 50, 100).forEach { score ->
+            val geo = buildTrainingReadinessRingGeometry(120, score)
+            assertEquals(score.toFloat().let { trainingReadinessMarkerAngleDegrees(score) }, geo.markerAngleDegrees!!, 0.05f)
+            assertTrue(geo.markerX!! in geo.markerRadiusPx..(geo.sizePx - geo.markerRadiusPx))
+            assertTrue(geo.markerY!! in geo.markerRadiusPx..(geo.sizePx - geo.markerRadiusPx))
+        }
+        val atZero = trainingReadinessMarkerAngleDegrees(0)
+        val atFifty = trainingReadinessMarkerAngleDegrees(50)
+        val atHundred = trainingReadinessMarkerAngleDegrees(100)
+        assertEquals(-90f, atZero, 0.05f)
+        assertTrue(atFifty > atZero)
+        assertTrue(atHundred > atFifty)
+
+        val missing = buildTrainingReadinessRingGeometry(96, null)
+        assertNull(missing.markerAngleDegrees)
+        assertNull(missing.markerX)
+        assertNull(missing.markerY)
+        assertEquals(1, missing.segments.size)
+        assertEquals(WidgetPalette.neutral, missing.segments.first().color)
+        assertTrue(missing.strokePx >= 8f)
+        assertTrue(missing.markerRadiusPx > 0f)
+        assertTrue(missing.markerRadiusPx <= missing.strokePx * 0.5f + 0.01f)
+    }
 }

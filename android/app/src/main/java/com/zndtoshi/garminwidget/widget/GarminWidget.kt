@@ -42,13 +42,10 @@ import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
 import com.zndtoshi.garminwidget.data.SettingsStore
-import com.zndtoshi.garminwidget.data.TimelinePoint
 import com.zndtoshi.garminwidget.data.WidgetResponse
 import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.data.activityDismissalIdentity
 import com.zndtoshi.garminwidget.data.shouldShowActivity
-import java.time.Instant
-import java.time.ZoneId
 
 class GarminWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
@@ -97,17 +94,8 @@ private fun WidgetContent(
         if (data == null) {
             EmptyState(status)
         } else {
-            val zone = ZoneId.systemDefault()
-            val bb = appendCurrentBodyBatteryPoint(
-                points = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone),
-                currentValue = data.bodyBattery,
-                refreshedAt = data.refreshedAt,
-                responseDate = data.date,
-                zoneId = zone,
-            )
-            val st = filterTimelineForResponseDate(data.stressTimeline, data.date, zone)
             Column(modifier = GlanceModifier.fillMaxWidth().clickable(actionRunCallback<OpenGarminAction>())) {
-                TwoRowLayout(data, bb, st, zone, spec, dismissedActivityIdentity)
+                TwoRowLayout(data, spec, dismissedActivityIdentity)
             }
         }
     }
@@ -153,13 +141,9 @@ private fun HeaderRow(status: LocalStatus) {
 @Composable
 private fun TwoRowLayout(
     data: WidgetResponse,
-    bodyBattery: List<TimelinePoint>,
-    stress: List<TimelinePoint>,
-    zoneId: ZoneId,
     spec: AdaptiveLayoutSpec,
     dismissedActivityIdentity: String?,
 ) {
-    val dayRange = timelineDayRange(data.date, zoneId)
     Row(
         modifier = GlanceModifier.fillMaxWidth().height(spec.healthRowDp.dp),
         verticalAlignment = Alignment.Top,
@@ -171,7 +155,7 @@ private fun TwoRowLayout(
             HrvPanel(data, spec)
         }
         EqualPanel(widthDp = spec.panelWidthDp.dp, heightDp = spec.healthRowDp.dp) {
-            BodyBatteryPanel(data, bodyBattery, stress, spec, dayRange?.first, dayRange?.second)
+            TrainingReadinessPanel(data, spec)
         }
     }
     if (spec.afterHealthSpacerDp > 0) {
@@ -235,32 +219,23 @@ private fun HrvPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
 }
 
 @Composable
-private fun BodyBatteryPanel(
-    data: WidgetResponse,
-    bodyBattery: List<TimelinePoint>,
-    stress: List<TimelinePoint>,
-    spec: AdaptiveLayoutSpec,
-    rangeStart: Instant?,
-    rangeEnd: Instant?,
-) {
-    val header = bodyBatteryHeaderPresentation(data.bodyBattery, spec.showPanelTitles)
+private fun TrainingReadinessPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
+    val header = trainingReadinessHeaderPresentation(spec.showPanelTitles)
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .padding(horizontal = 4.dp, vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        HealthPanelHeader(HealthPanelIcon.BODY_BATTERY, header)
+        HealthPanelHeader(HealthPanelIcon.TRAINING_READINESS, header)
         Spacer(GlanceModifier.defaultWeight())
-        CombinedChartImage(
-            bodyBattery = bodyBattery,
-            stress = stress,
-            bodyBatteryValue = data.bodyBattery,
-            stressValue = data.stress,
-            widthDp = spec.panelChartWidthDp.dp,
-            heightDp = spec.panelChartHeightDp.dp,
-            rangeStart = rangeStart,
-            rangeEnd = rangeEnd,
+        TrainingReadinessRing(
+            score = data.trainingReadiness,
+            ringDp = spec.trainingReadinessRingDp.dp,
+            scoreFontSp = trainingReadinessScoreFontSp(spec.widthDp),
+            classificationFontSp = trainingReadinessClassificationFontSp(spec.widthDp),
         )
+        Spacer(GlanceModifier.defaultWeight())
     }
 }
 
@@ -360,22 +335,40 @@ private fun SleepRing(
 }
 
 @Composable
-private fun CombinedChartImage(
-    bodyBattery: List<TimelinePoint>,
-    stress: List<TimelinePoint>,
-    bodyBatteryValue: Int?,
-    stressValue: Int?,
-    widthDp: Dp,
-    heightDp: Dp,
-    rangeStart: Instant?,
-    rangeEnd: Instant?,
+private fun TrainingReadinessRing(
+    score: Int?,
+    modifier: GlanceModifier = GlanceModifier,
+    ringDp: Dp = 48.dp,
+    scoreFontSp: Float = 16f,
+    classificationFontSp: Float = 9f,
 ) {
-    val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
-    Image(
-        provider = ImageProvider(drawCombinedChartBitmap(wPx, hPx, bodyBattery, stress, rangeStart, rangeEnd)),
-        contentDescription = chartContentDescription(bodyBattery.size, stress.size, bodyBatteryValue, stressValue),
-        modifier = GlanceModifier.width(widthDp).height(heightDp),
-    )
+    val px = LayoutMetrics.dpToRenderPx(ringDp.value)
+    Box(contentAlignment = Alignment.Center, modifier = modifier.width(ringDp).height(ringDp)) {
+        Image(
+            provider = ImageProvider(drawTrainingReadinessRingBitmap(px, score)),
+            contentDescription = trainingReadinessContentDescription(score),
+            modifier = GlanceModifier.fillMaxSize(),
+        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = trainingReadinessScoreLabel(score),
+                style = TextStyle(
+                    color = ColorProvider(Color.White),
+                    fontSize = scoreFontSp.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+            Text(
+                text = trainingReadinessClassification(score),
+                style = TextStyle(
+                    color = ColorProvider(Color(0xFFCFD8DC)),
+                    fontSize = classificationFontSp.sp,
+                ),
+                maxLines = 1,
+            )
+        }
+    }
 }
 
 @Composable
