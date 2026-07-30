@@ -103,7 +103,12 @@ class GarminMetricsAdapter:
         hrv_trend = _build_hrv_trend(
             metric_date, hrv, previous_hrv_trend, self,
         )
-        body_battery_value = _extract_body_battery(body_battery)
+        summary_body_battery = _extract_body_battery(stats)
+        body_battery_value = (
+            summary_body_battery
+            if summary_body_battery is not None
+            else _extract_body_battery(body_battery)
+        )
         body_battery_timeline = _extract_body_battery_timeline(body_battery)
         resting_hr = _extract_resting_heart_rate(rhr, stats)
         stress_value = _extract_stress(stress, stats)

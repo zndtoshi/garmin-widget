@@ -196,6 +196,22 @@ def test_adapter_uses_most_recent_body_battery_field() -> None:
     assert metrics.body_battery == 61
 
 
+def test_adapter_prefers_fresher_body_battery_from_daily_summary() -> None:
+    client = _complete_client(
+        body_battery=[
+            {
+                "date": "2026-07-28",
+                "bodyBatteryValuesArray": [[1753699200000, 91]],
+            }
+        ],
+        stats={"bodyBatteryMostRecentValue": 88},
+    )
+
+    metrics = GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
+
+    assert metrics.body_battery == 88
+
+
 def test_adapter_ignores_charged_only_body_battery() -> None:
     client = _complete_client(
         body_battery=[
