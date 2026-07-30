@@ -130,6 +130,7 @@ internal object WidgetPalette {
     const val readinessLow = 0xFFFF8C32.toInt()
     const val readinessModerate = 0xFFF6C344.toInt()
     const val readinessHigh = 0xFF35B85A.toInt()
+    const val readinessVeryHigh = 0xFF42A5F5.toInt()
     const val readinessPrime = 0xFF8A63D2.toInt()
     const val readinessTrack = 0xFF455A64.toInt()
     /** @see ACTIVITY_HR_LINE_NORMAL */
@@ -381,12 +382,15 @@ internal data class TrainingReadinessBand(
 internal val TRAINING_READINESS_BANDS: List<TrainingReadinessBand> = listOf(
     TrainingReadinessBand(0, 24, WidgetPalette.readinessPoor),
     TrainingReadinessBand(25, 49, WidgetPalette.readinessLow),
-    TrainingReadinessBand(50, 74, WidgetPalette.readinessModerate),
-    TrainingReadinessBand(75, 94, WidgetPalette.readinessHigh),
+    TrainingReadinessBand(50, 59, WidgetPalette.readinessModerate),
+    TrainingReadinessBand(60, 74, WidgetPalette.readinessHigh),
+    TrainingReadinessBand(75, 94, WidgetPalette.readinessVeryHigh),
     TrainingReadinessBand(95, 100, WidgetPalette.readinessPrime),
 )
 
 internal const val TRAINING_READINESS_RING_GAP_DEGREES = 3.5f
+internal const val TRAINING_READINESS_RING_START_DEGREES = 135f
+internal const val TRAINING_READINESS_RING_SWEEP_DEGREES = 270f
 
 internal data class TrainingReadinessRingGeometry(
     val sizePx: Int,
@@ -397,9 +401,11 @@ internal data class TrainingReadinessRingGeometry(
     val markerX: Float?,
     val markerY: Float?,
     val markerRadiusPx: Float,
+    val markerColor: Int?,
 )
 
-internal fun trainingReadinessColorArgb(score: Int?): Int {
+/** Color associated with the textual Poor/Low/Moderate/High/Prime classification. */
+internal fun trainingReadinessLevelColorArgb(score: Int?): Int {
     val level = trainingReadinessLevel(score) ?: return WidgetPalette.neutral
     return when (level) {
         TrainingReadinessLevel.POOR -> WidgetPalette.readinessPoor
@@ -412,12 +418,18 @@ internal fun trainingReadinessColorArgb(score: Int?): Int {
 
 internal fun buildTrainingReadinessRingSegments(score: Int?): List<RingSegment> {
     if (clampTrainingReadiness(score) == null) {
-        return listOf(RingSegment(-90f, 360f, WidgetPalette.neutral))
+        return listOf(
+            RingSegment(
+                TRAINING_READINESS_RING_START_DEGREES,
+                TRAINING_READINESS_RING_SWEEP_DEGREES,
+                WidgetPalette.neutral,
+            ),
+        )
     }
     val totalUnits = TRAINING_READINESS_BANDS.sumOf { it.units }.toFloat()
     val gap = TRAINING_READINESS_RING_GAP_DEGREES
-    val available = 360f - gap * TRAINING_READINESS_BANDS.size
-    var cursor = -90f
+    val available = TRAINING_READINESS_RING_SWEEP_DEGREES - gap * (TRAINING_READINESS_BANDS.size - 1)
+    var cursor = TRAINING_READINESS_RING_START_DEGREES
     return TRAINING_READINESS_BANDS.map { band ->
         val sweep = (band.units / totalUnits) * available
         val segment = RingSegment(cursor, sweep, band.color)
@@ -434,8 +446,8 @@ internal fun trainingReadinessMarkerAngleDegrees(score: Int): Float {
     val clamped = clampTrainingReadiness(score) ?: 0
     val totalUnits = TRAINING_READINESS_BANDS.sumOf { it.units }.toFloat()
     val gap = TRAINING_READINESS_RING_GAP_DEGREES
-    val available = 360f - gap * TRAINING_READINESS_BANDS.size
-    var cursor = -90f
+    val available = TRAINING_READINESS_RING_SWEEP_DEGREES - gap * (TRAINING_READINESS_BANDS.size - 1)
+    var cursor = TRAINING_READINESS_RING_START_DEGREES
     for (band in TRAINING_READINESS_BANDS) {
         val sweep = (band.units / totalUnits) * available
         if (clamped in band.startScore..band.endScore) {
@@ -446,6 +458,11 @@ internal fun trainingReadinessMarkerAngleDegrees(score: Int): Float {
         cursor += sweep + gap
     }
     return cursor
+}
+
+internal fun trainingReadinessMarkerColorArgb(score: Int?): Int? {
+    val clamped = clampTrainingReadiness(score) ?: return null
+    return TRAINING_READINESS_BANDS.first { clamped in it.startScore..it.endScore }.color
 }
 
 internal fun buildTrainingReadinessRingGeometry(sizePx: Int, score: Int?): TrainingReadinessRingGeometry {
@@ -466,6 +483,7 @@ internal fun buildTrainingReadinessRingGeometry(sizePx: Int, score: Int?): Train
             markerX = null,
             markerY = null,
             markerRadiusPx = markerRadius,
+            markerColor = null,
         )
     }
     val angle = trainingReadinessMarkerAngleDegrees(clamped)
@@ -487,6 +505,7 @@ internal fun buildTrainingReadinessRingGeometry(sizePx: Int, score: Int?): Train
         markerX = markerX,
         markerY = markerY,
         markerRadiusPx = markerRadius,
+        markerColor = trainingReadinessMarkerColorArgb(clamped),
     )
 }
 
@@ -500,7 +519,13 @@ internal fun drawTrainingReadinessRingBitmap(sizePx: Int, score: Int?): Bitmap {
         strokeWidth = geo.strokePx
         color = WidgetPalette.readinessTrack
     }
-    canvas.drawArc(geo.trackRect, -90f, 360f, false, trackPaint)
+    canvas.drawArc(
+        geo.trackRect,
+        TRAINING_READINESS_RING_START_DEGREES,
+        TRAINING_READINESS_RING_SWEEP_DEGREES,
+        false,
+        trackPaint,
+    )
     val bandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
@@ -515,7 +540,7 @@ internal fun drawTrainingReadinessRingBitmap(sizePx: Int, score: Int?): Bitmap {
     if (mx != null && my != null) {
         val markerFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.WHITE
+            color = geo.markerColor ?: Color.WHITE
         }
         val markerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.STROKE

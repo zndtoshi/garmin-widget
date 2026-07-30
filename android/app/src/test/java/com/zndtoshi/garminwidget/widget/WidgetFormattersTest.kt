@@ -171,9 +171,10 @@ class WidgetFormattersTest {
         assertEquals(0xFFFF8C32.toInt(), WidgetPalette.readinessLow)
         assertEquals(0xFFF6C344.toInt(), WidgetPalette.readinessModerate)
         assertEquals(0xFF35B85A.toInt(), WidgetPalette.readinessHigh)
+        assertEquals(0xFF42A5F5.toInt(), WidgetPalette.readinessVeryHigh)
         assertEquals(0xFF8A63D2.toInt(), WidgetPalette.readinessPrime)
-        assertEquals(WidgetPalette.readinessModerate, trainingReadinessColorArgb(68))
-        assertEquals(WidgetPalette.neutral, trainingReadinessColorArgb(null))
+        assertEquals(WidgetPalette.readinessHigh, trainingReadinessMarkerColorArgb(68))
+        assertEquals(WidgetPalette.neutral, trainingReadinessLevelColorArgb(null))
         assertTrue(trainingReadinessScoreFontSp(438f) > trainingReadinessClassificationFontSp(438f))
     }
 
