@@ -377,13 +377,9 @@ internal fun sleepDurationFontSp(widgetWidthDp: Float): Float = when {
     else -> 9f
 }
 
-/** Training Readiness score inside the ring. */
-internal fun trainingReadinessScoreFontSp(widgetWidthDp: Float): Float = when {
-    widgetWidthDp >= 400f -> 22f
-    widgetWidthDp >= 340f -> 18f
-    widgetWidthDp >= 280f -> 16f
-    else -> 14f
-}
+/** Training Readiness and Sleep use the same primary score hierarchy. */
+internal fun trainingReadinessScoreFontSp(widgetWidthDp: Float): Float =
+    sleepScoreFontSp(widgetWidthDp)
 
 /** Classification under the readiness score inside the ring. */
 internal fun trainingReadinessClassificationFontSp(widgetWidthDp: Float): Float = when {

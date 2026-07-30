@@ -187,6 +187,9 @@ class WidgetFormattersTest {
         assertEquals(WidgetPalette.readinessHigh, trainingReadinessMarkerColorArgb(68))
         assertEquals(WidgetPalette.neutral, trainingReadinessLevelColorArgb(null))
         assertTrue(trainingReadinessScoreFontSp(438f) > trainingReadinessClassificationFontSp(438f))
+        listOf(438f, 360f, 300f, 250f).forEach { width ->
+            assertEquals(sleepScoreFontSp(width), trainingReadinessScoreFontSp(width), 0.01f)
+        }
     }
 
     @Test
