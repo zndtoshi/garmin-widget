@@ -30,6 +30,15 @@ class WidgetStore(context: Context) {
             .apply()
     }
 
+    fun recoverCachedTransientFailure() {
+        val state = read()
+        if (state.status == LocalStatus.NETWORK_ERROR && state.data != null) {
+            prefs.edit()
+                .putString(KEY_STATUS, LocalStatus.READY.name)
+                .commit()
+        }
+    }
+
     fun markRefreshing() {
         prefs.edit()
             .putString(KEY_STATUS, LocalStatus.REFRESHING.name)

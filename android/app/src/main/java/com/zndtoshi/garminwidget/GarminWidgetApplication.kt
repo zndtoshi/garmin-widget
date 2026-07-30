@@ -2,6 +2,7 @@ package com.zndtoshi.garminwidget
 
 import android.app.Application
 import androidx.work.Configuration
+import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.work.RefreshScheduler
 
 class GarminWidgetApplication : Application(), Configuration.Provider {
@@ -10,6 +11,7 @@ class GarminWidgetApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        WidgetStore(this).recoverCachedTransientFailure()
         RefreshScheduler.schedulePeriodic(this)
     }
 }

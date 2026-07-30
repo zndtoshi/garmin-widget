@@ -1,6 +1,7 @@
 package com.zndtoshi.garminwidget.work
 
 import android.content.Context
+import android.util.Log
 import androidx.glance.appwidget.updateAll
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -36,20 +37,26 @@ class RefreshWorker(
             store.saveSuccess(rawJson)
             bumpWidgetRefreshRevision(applicationContext)
             Result.success()
-        } catch (_: WidgetAuthException) {
+        } catch (error: WidgetAuthException) {
+            Log.e("GarminRefreshWorker", "Widget refresh authentication failed", error)
             store.saveFailure(LocalStatus.AUTH_ERROR)
             bumpWidgetRefreshRevision(applicationContext)
             Result.failure()
         } catch (error: CancellationException) {
             throw error
-        } catch (_: IOException) {
-            store.saveFailure(LocalStatus.NETWORK_ERROR)
+        } catch (error: IOException) {
+            Log.e("GarminRefreshWorker", "Widget refresh network request failed", error)
+            store.saveFailure(statusAfterTransientFailure(store.read().data != null))
             bumpWidgetRefreshRevision(applicationContext)
-            Result.failure()
-        } catch (_: RuntimeException) {
-            store.saveFailure(LocalStatus.NETWORK_ERROR)
+            Result.retry()
+        } catch (error: RuntimeException) {
+            Log.e("GarminRefreshWorker", "Widget refresh response processing failed", error)
+            store.saveFailure(statusAfterTransientFailure(store.read().data != null))
             bumpWidgetRefreshRevision(applicationContext)
-            Result.failure()
+            Result.retry()
         }
     }
 }
+
+internal fun statusAfterTransientFailure(hasCachedData: Boolean): LocalStatus =
+    if (hasCachedData) LocalStatus.READY else LocalStatus.NETWORK_ERROR

@@ -58,6 +58,17 @@ class StorePersistenceTest {
     }
 
     @Test
+    fun cached_data_recovers_from_a_transient_network_status() {
+        val store = WidgetStore(context)
+        store.saveSuccess("{\"schemaVersion\":1,\"bodyBattery\":91}")
+        store.saveFailure(LocalStatus.NETWORK_ERROR)
+
+        store.recoverCachedTransientFailure()
+
+        assertEquals(LocalStatus.READY, WidgetStore(context).read().status)
+    }
+
+    @Test
     fun dismissed_activity_stays_hidden_until_a_new_activity_arrives() {
         val first = LastActivity(
             name = "Morning Run",
