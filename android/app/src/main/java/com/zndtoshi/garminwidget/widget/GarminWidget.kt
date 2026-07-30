@@ -98,7 +98,13 @@ private fun WidgetContent(
             EmptyState(status)
         } else {
             val zone = ZoneId.systemDefault()
-            val bb = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone)
+            val bb = appendCurrentBodyBatteryPoint(
+                points = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone),
+                currentValue = data.bodyBattery,
+                refreshedAt = data.refreshedAt,
+                responseDate = data.date,
+                zoneId = zone,
+            )
             val st = filterTimelineForResponseDate(data.stressTimeline, data.date, zone)
             Column(modifier = GlanceModifier.fillMaxWidth().clickable(actionRunCallback<OpenGarminAction>())) {
                 TwoRowLayout(data, bb, st, zone, spec, dismissedActivityIdentity)

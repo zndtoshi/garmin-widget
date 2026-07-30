@@ -99,6 +99,23 @@ internal fun filterTimelineForResponseDate(
         .takeLast(48)
 }
 
+internal fun appendCurrentBodyBatteryPoint(
+    points: List<TimelinePoint>,
+    currentValue: Int?,
+    refreshedAt: String?,
+    responseDate: String?,
+    zoneId: ZoneId,
+): List<TimelinePoint> {
+    val value = currentValue?.takeIf { it in 0..100 } ?: return points
+    val timestamp = runCatching { Instant.parse(refreshedAt) }.getOrNull() ?: return points
+    val targetDate = runCatching { LocalDate.parse(responseDate) }.getOrNull()
+    if (targetDate != null && timestamp.atZone(zoneId).toLocalDate() != targetDate) return points
+
+    val sorted = points.filter { it.value in 0..100 }.sortedBy { it.timestamp }
+    if (sorted.lastOrNull()?.timestamp?.let { !timestamp.isAfter(it) } == true) return sorted
+    return (sorted + TimelinePoint(timestamp, value)).takeLast(48)
+}
+
 internal fun timelineDayRange(responseDate: String?, zoneId: ZoneId): Pair<Instant, Instant>? {
     val date = runCatching { LocalDate.parse(responseDate) }.getOrNull() ?: return null
     val start = date.atStartOfDay(zoneId).toInstant()

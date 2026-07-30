@@ -15,6 +15,8 @@ import com.zndtoshi.garminwidget.data.LocalStatus
 import com.zndtoshi.garminwidget.data.SleepStages
 import com.zndtoshi.garminwidget.data.TimelinePoint
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -113,7 +115,8 @@ internal object WidgetPalette {
     /** Garmin Connect–style Body Battery stroke (white/off-white). */
     const val battery = 0xFFF5F7FA.toInt()
     /** Very subtle fill under the Body Battery curve (not a strong cyan area). */
-    const val batteryFill = 0x14FFFFFF
+    const val batteryFill = 0x34FFFFFF
+    const val batteryFillBottom = 0x08FFFFFF
     /** Rest / low stress (0–25). */
     const val stressRest = 0xFF42A5F5.toInt()
     /** Elevated stress (26–100). */
@@ -533,11 +536,13 @@ internal fun drawCombinedChartBitmap(
         textSize = 10f
         textAlign = Paint.Align.CENTER
     }
-    listOf("00", "06", "12", "18", "24").forEachIndexed { index, label ->
+    repeat(5) { index ->
         val x = geometry.left + (geometry.right - geometry.left) * index / 4f
         canvas.drawLine(x, geometry.top, x, geometry.bottom, gridPaint)
-        canvas.drawText(label, x, geometry.heightPx - 2f, labelPaint)
     }
+    canvas.drawLine(geometry.left, geometry.bottom, geometry.right, geometry.bottom, gridPaint)
+    canvas.drawText("00", geometry.left, geometry.heightPx - 2f, labelPaint)
+    canvas.drawText("24", geometry.right, geometry.heightPx - 2f, labelPaint)
 
     if (geometry.stressPoints.isNotEmpty()) {
         val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -547,6 +552,20 @@ internal fun drawCombinedChartBitmap(
             canvas.drawRect(point.x - barHalf, point.y, point.x + barHalf, geometry.bottom, barPaint)
         }
     }
+
+    val sleepRadius = (geometry.heightPx * 0.06f).coerceIn(4f, 6f)
+    val sleepX = geometry.left + sleepRadius
+    val sleepY = geometry.bottom - sleepRadius
+    canvas.drawCircle(sleepX, sleepY, sleepRadius, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = WidgetPalette.stressRest
+        style = Paint.Style.FILL
+    })
+    canvas.drawText("Zz", sleepX, sleepY + sleepRadius * 0.33f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = (sleepRadius * 0.9f).coerceAtLeast(4f)
+        textAlign = Paint.Align.CENTER
+        isFakeBoldText = true
+    })
 
     if (geometry.batteryPoints.isNotEmpty()) {
         val measured = geometry.batteryPoints
@@ -580,7 +599,17 @@ internal fun drawCombinedChartBitmap(
                 lineTo(renderPoints.first().x, geometry.bottom)
                 close()
             }
-            canvas.drawPath(fill, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WidgetPalette.batteryFill })
+            canvas.drawPath(fill, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(
+                    0f,
+                    geometry.top,
+                    0f,
+                    geometry.bottom,
+                    WidgetPalette.batteryFill,
+                    WidgetPalette.batteryFillBottom,
+                    Shader.TileMode.CLAMP,
+                )
+            })
             canvas.drawPath(path, curvePaint)
             val end = measured.last()
             canvas.drawCircle(
@@ -592,6 +621,22 @@ internal fun drawCombinedChartBitmap(
                     style = Paint.Style.FILL
                 },
             )
+            val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = WidgetPalette.battery
+                textSize = (geometry.heightPx * 0.1f).coerceIn(7f, 10f)
+                textAlign = Paint.Align.CENTER
+                isFakeBoldText = true
+            }
+            val valueY = (end.y - batteryEndpointMarkerRadiusPx(stroke) - 2f)
+                .coerceAtLeast(geometry.top + valuePaint.textSize)
+            canvas.drawText(end.value.toString(), end.x, valueY, valuePaint)
+
+            val currentTime = battery.maxByOrNull { it.timestamp }?.timestamp
+                ?.atZone(ZoneId.systemDefault())
+                ?.format(DateTimeFormatter.ofPattern("HH:mm", Locale.US))
+            if (currentTime != null && end.x > geometry.left + 18f && end.x < geometry.right - 18f) {
+                canvas.drawText(currentTime, end.x, geometry.heightPx - 2f, labelPaint)
+            }
         }
     }
     return bmp

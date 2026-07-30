@@ -263,6 +263,40 @@ class WidgetFormattersTest {
     }
 
     @Test
+    fun `appends fresher summary value to body battery timeline`() {
+        val zone = ZoneId.of("Europe/Bucharest")
+        val timeline = listOf(
+            TimelinePoint(Instant.parse("2026-07-30T03:42:00Z"), 91),
+        )
+
+        val stitched = appendCurrentBodyBatteryPoint(
+            points = timeline,
+            currentValue = 88,
+            refreshedAt = "2026-07-30T04:44:32Z",
+            responseDate = "2026-07-30",
+            zoneId = zone,
+        )
+
+        assertEquals(listOf(91, 88), stitched.map { it.value })
+        assertEquals(Instant.parse("2026-07-30T04:44:32Z"), stitched.last().timestamp)
+    }
+
+    @Test
+    fun `does not append stale or wrong-day body battery summary`() {
+        val zone = ZoneId.of("Europe/Bucharest")
+        val timeline = listOf(TimelinePoint(Instant.parse("2026-07-30T04:00:00Z"), 91))
+
+        assertEquals(
+            timeline,
+            appendCurrentBodyBatteryPoint(timeline, 88, "2026-07-30T03:00:00Z", "2026-07-30", zone),
+        )
+        assertEquals(
+            timeline,
+            appendCurrentBodyBatteryPoint(timeline, 88, "2026-07-31T04:00:00Z", "2026-07-30", zone),
+        )
+    }
+
+    @Test
     fun `formats activity metrics`() {
         assertEquals("5:00 /km", formatPace(5000.0, 1500))
         assertEquals("28.8 km/h", formatSpeedMps(8.0))

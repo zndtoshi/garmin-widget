@@ -377,7 +377,8 @@ class WidgetGraphicsTest {
         assertEquals(17, smooth.first().value)
         assertEquals(64, smooth.last().value)
         assertEquals(0xFFF5F7FA.toInt(), WidgetPalette.battery)
-        assertTrue(WidgetPalette.batteryFill ushr 24 <= 0x20)
+        assertTrue(WidgetPalette.batteryFill ushr 24 in 0x21..0x40)
+        assertTrue(WidgetPalette.batteryFillBottom ushr 24 < WidgetPalette.batteryFill ushr 24)
     }
 
     @Test
