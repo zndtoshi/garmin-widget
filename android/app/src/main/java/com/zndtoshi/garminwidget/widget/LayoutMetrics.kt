@@ -86,9 +86,12 @@ internal data class AdaptiveLayoutSpec(
     val trainingReadinessInternalBudgetFits: Boolean
         get() = trainingReadinessInternalUsedHeightDp <= healthPanelContentHeightDp
 
-    /** Sleep ring + shared bottom inset (no header / no below-ring duration row). */
+    /** Header + Sleep ring + shared bottom inset. */
     val sleepInternalUsedHeightDp: Int
-        get() = sleepRingDp.roundToInt() + LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP
+        get() = LayoutMetrics.SLEEP_HEADER_DP +
+            sleepRingDp.roundToInt() +
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP +
+            LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2
 
     val sleepInternalBudgetFits: Boolean
         get() = sleepInternalUsedHeightDp <= healthPanelContentHeightDp
@@ -143,6 +146,7 @@ internal object LayoutMetrics {
     const val MIN_HRV_GRAPH_HEIGHT_DP = 24
     const val MIN_SLEEP_RING_DP = 36
     const val MIN_TRAINING_READINESS_RING_DP = 32
+    const val SLEEP_HEADER_DP = 14
     const val HRV_HEADER_DP = 14
     const val HRV_STATUS_DP = 12
     const val TRAINING_READINESS_HEADER_DP = 14
@@ -256,12 +260,7 @@ internal object LayoutMetrics {
         val hrChart = activityHrChartHeightDp(activity)
 
         val contentH = healthPanelContentHeightDp(health)
-        // Sleep: no title; duration lives inside the ring — enlarge ring to fill the card.
-        val sleepRing = min(
-            panelWidth - HEALTH_PANEL_HORIZONTAL_PADDING_DP * 2f - 2f,
-            (contentH - HEALTH_CARD_BOTTOM_INSET_DP).toFloat(),
-        ).coerceIn(1f, contentH.toFloat().coerceAtLeast(1f))
-            .coerceAtLeast(MIN_SLEEP_RING_DP.toFloat().coerceAtMost(contentH.toFloat()))
+        // Sleep and Training Readiness share the same header/ring vertical budget.
         val graphWidth = (panelWidth - 22f - HEALTH_DATA_INNER_HORIZONTAL_PADDING_DP * 2f)
             .coerceIn(48f, 112f)
         // Fill remaining card height under headers so chart baselines share the bottom inset.
@@ -276,6 +275,7 @@ internal object LayoutMetrics {
             trRingBudget,
         ).coerceIn(1f, trRingBudget)
             .coerceAtLeast(MIN_TRAINING_READINESS_RING_DP.toFloat().coerceAtMost(trRingBudget))
+        val sleepRing = trainingReadinessRing
 
         return AdaptiveLayoutSpec(
             widthDp = width,

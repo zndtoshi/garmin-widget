@@ -292,6 +292,13 @@ internal fun trainingReadinessHeaderPresentation(showTitle: Boolean): HealthPane
         supportingLeft = null,
     )
 
+internal fun sleepHeaderPresentation(showTitle: Boolean): HealthPanelHeaderPresentation =
+    HealthPanelHeaderPresentation(
+        title = if (showTitle) "Sleep Score" else null,
+        trailingValue = null,
+        supportingLeft = null,
+    )
+
 internal fun clampTrainingReadiness(score: Int?): Int? =
     score?.coerceIn(0, 100)
 
@@ -344,11 +351,10 @@ internal fun topHealthPanelOrder(): List<String> =
 internal fun widgetRendersBodyBatteryChart(): Boolean = false
 
 /**
- * Sleep card: no title/icon; duration sits inside the ring under the score
- * (no separate duration row below the ring).
+ * Sleep card: title/icon restored; duration remains inside the ring under the score.
  */
 internal data class SleepRingContentPresentation(
-    val showTitle: Boolean = false,
+    val showTitle: Boolean = true,
     val durationInsideRing: Boolean = true,
     val durationBelowRing: Boolean = false,
 )

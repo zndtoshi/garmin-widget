@@ -175,17 +175,23 @@ private fun TwoRowLayout(
 
 @Composable
 private fun SleepPanel(data: WidgetResponse, spec: AdaptiveLayoutSpec) {
+    val header = sleepHeaderPresentation(spec.showPanelTitles)
     Column(
-        modifier = GlanceModifier.fillMaxSize(),
+        modifier = GlanceModifier
+            .fillMaxSize()
+            .padding(horizontal = 4.dp, vertical = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.Top,
     ) {
+        HealthPanelHeader(HealthPanelIcon.SLEEP, header)
+        Spacer(GlanceModifier.defaultWeight())
         SleepRing(
             data = data,
             ringDp = spec.sleepRingDp.dp,
             scoreFontSp = sleepScoreFontSp(spec.widthDp),
             durationFontSp = sleepDurationFontSp(spec.widthDp),
         )
+        Spacer(GlanceModifier.defaultWeight())
     }
 }
 

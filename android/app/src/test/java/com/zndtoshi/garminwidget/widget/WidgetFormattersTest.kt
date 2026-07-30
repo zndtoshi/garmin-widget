@@ -66,6 +66,7 @@ class WidgetFormattersTest {
         assertTrue(spec.hrvInternalBudgetFits)
         assertTrue(spec.trainingReadinessInternalBudgetFits)
         assertTrue(spec.sleepInternalBudgetFits)
+        assertEquals(spec.trainingReadinessRingDp, spec.sleepRingDp, 0.01f)
         assertTrue(spec.healthChartsBottomAligned)
         assertEquals(
             LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
@@ -75,13 +76,17 @@ class WidgetFormattersTest {
             LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
             spec.healthPanelContentHeightDp - (spec.trainingReadinessRingDp.roundToInt() + LayoutMetrics.TRAINING_READINESS_HEADER_DP),
         )
+        assertEquals(
+            LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP + LayoutMetrics.HEALTH_DATA_INNER_VERTICAL_PADDING_DP * 2,
+            spec.healthPanelContentHeightDp - (spec.sleepRingDp.roundToInt() + LayoutMetrics.SLEEP_HEADER_DP),
+        )
         assertEquals(26f, sleepScoreFontSp(spec.widthDp), 0.01f)
         assertTrue(spec.estimatedUsedHeightDp <= size.height.value.roundToInt())
         val sleep = sleepRingContentPresentation()
-        assertFalse(sleep.showTitle)
+        assertTrue(sleep.showTitle)
         assertTrue(sleep.durationInsideRing)
         assertFalse(sleep.durationBelowRing)
-        assertTrue(spec.sleepRingDp + 0.01f >= spec.healthPanelContentHeightDp - LayoutMetrics.HEALTH_CARD_BOTTOM_INSET_DP - 1f)
+        assertEquals(spec.trainingReadinessRingDp, spec.sleepRingDp, 0.01f)
         assertEquals(listOf("Sleep", "HRV Status", "Training Readiness"), topHealthPanelOrder())
         assertFalse(widgetRendersBodyBatteryChart())
     }
@@ -106,6 +111,7 @@ class WidgetFormattersTest {
             assertTrue(spec.sleepRingDp > 0f)
             assertTrue(spec.hrvGraphHeightDp > 0f)
             assertTrue(spec.trainingReadinessRingDp > 0f)
+            assertEquals(spec.trainingReadinessRingDp, spec.sleepRingDp, 0.01f)
             assertTrue(spec.showActivityHrChart)
             assertTrue("activity budget for $size", spec.activityInternalBudgetFits)
             assertTrue(spec.activityAlignsWithHealthRowInsets)
@@ -144,6 +150,11 @@ class WidgetFormattersTest {
         assertEquals(null, tr.trailingValue)
         assertEquals(null, tr.supportingLeft)
         assertFalse(tr.duplicatesTrailingBelow)
+
+        val sleepHeader = sleepHeaderPresentation(showTitle = true)
+        assertEquals("Sleep Score", sleepHeader.title)
+        assertEquals(null, sleepHeader.trailingValue)
+        assertEquals(null, sleepHeader.supportingLeft)
     }
 
     @Test
