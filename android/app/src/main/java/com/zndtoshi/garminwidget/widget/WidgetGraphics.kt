@@ -585,6 +585,11 @@ internal fun yForHrvMs(valueMs: Int, plotTop: Float, plotBottom: Float): Float {
 internal fun hrvAxisLabelTextSizePx(heightPx: Int): Float =
     (heightPx * 0.09f).coerceIn(8f, 10f)
 
+internal const val HRV_REFERENCE_CHANNEL_LOW_MS = 38
+internal const val HRV_REFERENCE_CHANNEL_HIGH_MS = 70
+internal const val HRV_REFERENCE_CHANNEL_FILL = 0x12FFFFFF
+internal const val HRV_REFERENCE_CHANNEL_EDGE = 0x1CFFFFFF
+
 internal fun buildHrvGraphGeometry(
     widthPx: Int,
     heightPx: Int,
@@ -644,6 +649,24 @@ internal fun drawHrvGraphBitmap(
         color = 0xFF9FB5BB.toInt()
         textSize = hrvAxisLabelTextSizePx(geometry.heightPx)
     }
+
+    // Garmin's personal baseline bounds are not exposed by our widget payload yet.
+    // This intentionally faint reference channel echoes the Connect presentation
+    // without adding another data series or bringing back neutral/grey markers.
+    val channelTop = yForHrvMs(HRV_REFERENCE_CHANNEL_HIGH_MS, geometry.plotTop, geometry.plotBottom)
+    val channelBottom = yForHrvMs(HRV_REFERENCE_CHANNEL_LOW_MS, geometry.plotTop, geometry.plotBottom)
+    val channelFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = HRV_REFERENCE_CHANNEL_FILL
+        style = Paint.Style.FILL
+    }
+    val channelEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = HRV_REFERENCE_CHANNEL_EDGE
+        strokeWidth = 1f
+        style = Paint.Style.STROKE
+    }
+    canvas.drawRect(geometry.plotLeft, channelTop, geometry.plotRight, channelBottom, channelFillPaint)
+    canvas.drawLine(geometry.plotLeft, channelTop, geometry.plotRight, channelTop, channelEdgePaint)
+    canvas.drawLine(geometry.plotLeft, channelBottom, geometry.plotRight, channelBottom, channelEdgePaint)
 
     fun drawGrid(y: Float) {
         canvas.drawLine(geometry.plotLeft, y, geometry.plotRight, y, gridPaint)

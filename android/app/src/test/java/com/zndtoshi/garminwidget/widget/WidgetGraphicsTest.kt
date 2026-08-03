@@ -309,6 +309,18 @@ class WidgetGraphicsTest {
     }
 
     @Test
+    fun `hrv reference channel is subtle and stays inside fixed scale`() {
+        val top = yForHrvMs(HRV_REFERENCE_CHANNEL_HIGH_MS, 8f, 60f)
+        val bottom = yForHrvMs(HRV_REFERENCE_CHANNEL_LOW_MS, 8f, 60f)
+
+        assertTrue(HRV_REFERENCE_CHANNEL_LOW_MS > HRV_SCALE_MIN_MS)
+        assertTrue(HRV_REFERENCE_CHANNEL_HIGH_MS < HRV_SCALE_MAX_MS)
+        assertTrue(top < bottom)
+        assertTrue(HRV_REFERENCE_CHANNEL_FILL ushr 24 <= 0x18)
+        assertTrue(HRV_REFERENCE_CHANNEL_EDGE ushr 24 <= 0x20)
+    }
+
+    @Test
     fun `stress bars classify rest blue and stress orange`() {
         assertEquals(StressBarKind.REST, classifyStressBar(0))
         assertEquals(StressBarKind.REST, classifyStressBar(25))
