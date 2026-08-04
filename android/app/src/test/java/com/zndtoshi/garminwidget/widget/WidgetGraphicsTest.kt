@@ -285,6 +285,7 @@ class WidgetGraphicsTest {
         assertEquals(GARMIN_HR_ZONE_BLUE, activityHrGarminZoneColorArgb(0.70f))
         assertEquals(GARMIN_HR_ZONE_GREEN, activityHrGarminZoneColorArgb(0.80f))
         assertEquals(GARMIN_HR_ZONE_ORANGE, activityHrGarminZoneColorArgb(0.90f))
+        assertEquals(GARMIN_HR_ZONE_RED, activityHrGarminZoneColorArgb(0.95f))
         assertEquals(GARMIN_HR_ZONE_RED, activityHrGarminZoneColorArgb(1.00f))
         assertEquals(GARMIN_HR_ZONE_GREY, activityHrGarminZoneColorArgb(0f))
         assertEquals(GARMIN_HR_ZONE_GREY, activityHrGarminZoneColorArgb(-1f))
@@ -293,11 +294,11 @@ class WidgetGraphicsTest {
         val at65 = activityHrGarminZoneColorArgb(0.65f)
         val at75 = activityHrGarminZoneColorArgb(0.75f)
         val at85 = activityHrGarminZoneColorArgb(0.85f)
-        val at95 = activityHrGarminZoneColorArgb(0.95f)
+        val at925 = activityHrGarminZoneColorArgb(0.925f)
         assertTrue(at65 != GARMIN_HR_ZONE_GREY && at65 != GARMIN_HR_ZONE_BLUE)
         assertTrue(at75 != GARMIN_HR_ZONE_BLUE && at75 != GARMIN_HR_ZONE_GREEN)
         assertTrue(at85 != GARMIN_HR_ZONE_GREEN && at85 != GARMIN_HR_ZONE_ORANGE)
-        assertTrue(at95 != GARMIN_HR_ZONE_ORANGE && at95 != GARMIN_HR_ZONE_RED)
+        assertTrue(at925 != GARMIN_HR_ZONE_ORANGE && at925 != GARMIN_HR_ZONE_RED)
 
         val maxHr = 200
         assertEquals(

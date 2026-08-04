@@ -1510,7 +1510,7 @@ internal val GARMIN_HR_ZONE_ANCHORS: List<Pair<Float, Int>> = listOf(
     0.70f to GARMIN_HR_ZONE_BLUE,
     0.80f to GARMIN_HR_ZONE_GREEN,
     0.90f to GARMIN_HR_ZONE_ORANGE,
-    1.00f to GARMIN_HR_ZONE_RED,
+    0.95f to GARMIN_HR_ZONE_RED,
 )
 
 /**
@@ -1541,7 +1541,7 @@ internal fun activityHrLineColorArgb(
 
 /**
  * Continuous Garmin-like HR zone color for a clamped HR/maxHR ratio.
- * Anchors: grey ≤60%, blue @70%, green @80%, orange @90%, red @100%.
+ * Anchors: grey ≤60%, blue @70%, green @80%, orange @90%, red at and above 95%.
  */
 internal fun activityHrGarminZoneColorArgb(ratio: Float): Int {
     val r = ratio.coerceIn(0f, 1f)

@@ -23,7 +23,7 @@ class ActivityHrChartModeTest {
         ActivityHeartRatePoint(30, 130), // grey/blue blend (~65%)
         ActivityHeartRatePoint(60, 150), // blue/green (~75%)
         ActivityHeartRatePoint(90, 170), // green/orange (~85%)
-        ActivityHeartRatePoint(120, 190), // orange/red (~95%)
+        ActivityHeartRatePoint(120, 190), // pure red threshold (~95%)
         ActivityHeartRatePoint(150, 200), // red (100%)
     )
     private val maxHr = 200
