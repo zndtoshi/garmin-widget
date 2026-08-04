@@ -35,6 +35,9 @@ internal fun sleepRingRemLabelAngle(segment: RingSegment): Float {
     return segment.startDegrees + segment.sweepDegrees * 0.30f
 }
 
+internal fun sleepRingLabelArchDepthPx(strokePx: Float): Float =
+    (strokePx * 0.12f).coerceAtLeast(1f)
+
 internal data class ChartPoint(
     val x: Float,
     val y: Float,
@@ -421,7 +424,14 @@ internal fun drawSleepRingBitmap(
         val baseline = labelY - (labelPaint.ascent() + labelPaint.descent()) / 2f
         canvas.save()
         canvas.rotate(readableRotation, labelX, labelY)
-        canvas.drawText(remDurationLabel, labelX, baseline, labelPaint)
+        val finalTextWidth = labelPaint.measureText(remDurationLabel)
+        val archDepth = sleepRingLabelArchDepthPx(stroke)
+        val textPath = Path().apply {
+            moveTo(labelX - finalTextWidth / 2f, baseline + archDepth)
+            quadTo(labelX, baseline - archDepth, labelX + finalTextWidth / 2f, baseline + archDepth)
+        }
+        labelPaint.textAlign = Paint.Align.LEFT
+        canvas.drawTextOnPath(remDurationLabel, textPath, 0f, 0f, labelPaint)
         canvas.restore()
     }
     return bmp

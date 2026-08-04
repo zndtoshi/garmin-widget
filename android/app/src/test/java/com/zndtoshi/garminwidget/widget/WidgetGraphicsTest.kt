@@ -50,6 +50,8 @@ class WidgetGraphicsTest {
         assertEquals(160f, sleepRingRemLabelAngle(RingSegment(130f, 100f, WidgetPalette.rem)), 0.01f)
         assertEquals(132.6f, sleepRingRemLabelAngle(RingSegment(120f, 42f, WidgetPalette.rem)), 0.01f)
         assertEquals(210.6f, sleepRingRemLabelAngle(RingSegment(198f, 42f, WidgetPalette.rem)), 0.01f)
+        assertEquals(1.2f, sleepRingLabelArchDepthPx(10f), 0.01f)
+        assertEquals(1f, sleepRingLabelArchDepthPx(4f), 0.01f)
     }
 
     @Test
