@@ -36,6 +36,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.zndtoshi.garminwidget.R
+import com.zndtoshi.garminwidget.data.ActivityHrColorMode
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
@@ -66,6 +67,7 @@ class GarminWidget : GlanceAppWidget() {
                 data = state.data,
                 status = resolveVisibleStatus(settings.isConfigured(), state.status, refreshRevision),
                 opacityPercent = settings.widgetOpacityPercent(),
+                hrColorMode = settings.activityHrColorMode(),
                 lowerCard = state.lowerCard,
             )
         }
@@ -82,6 +84,7 @@ private fun WidgetContent(
     data: WidgetResponse?,
     status: LocalStatus,
     opacityPercent: Int,
+    hrColorMode: ActivityHrColorMode,
     lowerCard: LowerCardState,
 ) {
     val spec = LayoutMetrics.fromSize(LocalSize.current)
@@ -96,7 +99,7 @@ private fun WidgetContent(
         if (data == null) {
             EmptyState(status)
         } else {
-            TwoRowLayout(data, spec, lowerCard)
+            TwoRowLayout(data, spec, lowerCard, hrColorMode)
         }
     }
 }
@@ -143,6 +146,7 @@ private fun TwoRowLayout(
     data: WidgetResponse,
     spec: AdaptiveLayoutSpec,
     lowerCard: LowerCardState,
+    hrColorMode: ActivityHrColorMode,
 ) {
     Row(
         modifier = GlanceModifier
@@ -171,6 +175,7 @@ private fun TwoRowLayout(
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
         chartWidthDp = spec.activityChartContentWidthDp.dp,
+        hrColorMode = hrColorMode,
     )
 }
 
@@ -182,6 +187,7 @@ private fun LowerCardHost(
     showHrChart: Boolean,
     hrChartHeightDp: Dp,
     chartWidthDp: Dp,
+    hrColorMode: ActivityHrColorMode,
 ) {
     when (kind) {
         LowerCardKind.BODY_BATTERY -> BodyBatteryStrip(
@@ -196,6 +202,7 @@ private fun LowerCardHost(
             showHrChart = showHrChart,
             hrChartHeightDp = hrChartHeightDp,
             chartWidthDp = chartWidthDp,
+            hrColorMode = hrColorMode,
         )
         LowerCardKind.NONE -> Spacer(GlanceModifier.fillMaxWidth().height(heightDp))
     }
@@ -435,6 +442,7 @@ private fun ActivityHrChartImage(
     widthDp: Dp,
     heightDp: Dp,
     maxHeartRate: Int?,
+    hrColorMode: ActivityHrColorMode,
 ) {
     if (heightDp.value < 8f) return
     val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
@@ -445,6 +453,7 @@ private fun ActivityHrChartImage(
         maxHeartRate,
         speedTimeline,
         averageSpeedMetersPerSecond,
+        hrColorMode,
     ) ?: return
     Image(
         provider = ImageProvider(bitmap),
@@ -597,6 +606,7 @@ private fun ActivityStrip(
     showHrChart: Boolean,
     hrChartHeightDp: Dp,
     chartWidthDp: Dp,
+    hrColorMode: ActivityHrColorMode,
 ) {
     if (activity == null) {
         Spacer(GlanceModifier.fillMaxWidth().height(heightDp))
@@ -669,6 +679,7 @@ private fun ActivityStrip(
                     widthDp = chartWidthDp,
                     heightDp = hrChartHeightDp,
                     maxHeartRate = activity.maxHeartRate,
+                    hrColorMode = hrColorMode,
                 )
             }
         }

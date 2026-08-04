@@ -10,6 +10,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
+import com.zndtoshi.garminwidget.data.ActivityHrColorMode
 import com.zndtoshi.garminwidget.data.ActivitySpeedPoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
@@ -34,7 +35,6 @@ internal data class RingSegment(
 internal fun sleepRingRemLabelAngle(segment: RingSegment): Float {
     return segment.startDegrees + segment.sweepDegrees * 0.30f
 }
-
 internal fun sleepRingLabelArchDepthPx(strokePx: Float): Float =
     (strokePx * 0.12f).coerceAtLeast(1f)
 
@@ -439,7 +439,6 @@ internal fun drawSleepRingBitmap(
     }
     return bmp
 }
-
 /** Inclusive score bands for the Training Readiness multicolor scale. */
 internal data class TrainingReadinessBand(
     val startScore: Int,
@@ -622,7 +621,6 @@ internal fun drawTrainingReadinessRingBitmap(sizePx: Int, score: Int?): Bitmap {
     }
     return bmp
 }
-
 internal data class HrvGraphSlot(
     val index: Int,
     val x: Float,
@@ -1500,11 +1498,128 @@ internal fun isActivityHrPeak(heartRate: Int, maxHr: Int): Boolean =
 internal fun activityHrPeakDiffusionSelected(midpointHr: Float, ceiling: Int): Boolean =
     activityHrPeakRatio(midpointHr, ceiling) >= ACTIVITY_HR_PEAK_RATIO
 
+/** Garmin-like zone anchors as fraction of resolved max HR (continuous ramp between them). */
+internal val GARMIN_HR_ZONE_GREY = 0xFF90A4AE.toInt()
+internal val GARMIN_HR_ZONE_BLUE = 0xFF42A5F5.toInt()
+internal val GARMIN_HR_ZONE_GREEN = 0xFF35B85A.toInt()
+internal val GARMIN_HR_ZONE_ORANGE = 0xFFFF8C32.toInt()
+internal val GARMIN_HR_ZONE_RED = 0xFFF4514F.toInt()
+
+internal val GARMIN_HR_ZONE_ANCHORS: List<Pair<Float, Int>> = listOf(
+    0.60f to GARMIN_HR_ZONE_GREY,
+    0.70f to GARMIN_HR_ZONE_BLUE,
+    0.80f to GARMIN_HR_ZONE_GREEN,
+    0.90f to GARMIN_HR_ZONE_ORANGE,
+    1.00f to GARMIN_HR_ZONE_RED,
+)
+
 /**
- * Thin activity HR stroke: cool grey below 95% of resolved max HR, coral red at/above.
+ * Thin activity HR stroke color for [mode].
+ * [WHITE_RED_PEAKS]: cool grey below 95% of resolved max HR, coral red at/above.
+ * [GARMIN_ZONES]: continuous Garmin-like zone ramp vs the same max-HR ceiling.
  */
-internal fun activityHrLineColorArgb(heartRate: Int, maxHr: Int): Int =
-    if (isActivityHrPeak(heartRate, maxHr)) ACTIVITY_HR_LINE_PEAK else ACTIVITY_HR_LINE_NORMAL
+internal fun activityHrLineColorArgb(
+    heartRate: Int,
+    maxHr: Int,
+    mode: ActivityHrColorMode = ActivityHrColorMode.WHITE_RED_PEAKS,
+): Int = activityHrLineColorArgb(heartRate.toFloat(), maxHr, mode)
+
+internal fun activityHrLineColorArgb(
+    heartRate: Float,
+    maxHr: Int,
+    mode: ActivityHrColorMode = ActivityHrColorMode.WHITE_RED_PEAKS,
+): Int = when (mode) {
+    ActivityHrColorMode.WHITE_RED_PEAKS ->
+        if (activityHrPeakRatio(heartRate, maxHr) >= ACTIVITY_HR_PEAK_RATIO) {
+            ACTIVITY_HR_LINE_PEAK
+        } else {
+            ACTIVITY_HR_LINE_NORMAL
+        }
+    ActivityHrColorMode.GARMIN_ZONES ->
+        activityHrGarminZoneColorArgb(activityHrPeakRatio(heartRate, maxHr))
+}
+
+/**
+ * Continuous Garmin-like HR zone color for a clamped HR/maxHR ratio.
+ * Anchors: grey ≤60%, blue @70%, green @80%, orange @90%, red @100%.
+ */
+internal fun activityHrGarminZoneColorArgb(ratio: Float): Int {
+    val r = ratio.coerceIn(0f, 1f)
+    if (r <= GARMIN_HR_ZONE_ANCHORS.first().first) {
+        return GARMIN_HR_ZONE_ANCHORS.first().second
+    }
+    for (i in 0 until GARMIN_HR_ZONE_ANCHORS.lastIndex) {
+        val (r0, c0) = GARMIN_HR_ZONE_ANCHORS[i]
+        val (r1, c1) = GARMIN_HR_ZONE_ANCHORS[i + 1]
+        if (r <= r1) {
+            val span = (r1 - r0).coerceAtLeast(1e-6f)
+            return lerpColorArgbHsv(c0, c1, (r - r0) / span)
+        }
+    }
+    return GARMIN_HR_ZONE_ANCHORS.last().second
+}
+
+/** Hue-aware ARGB lerp; avoids muddy brown transitions across zone boundaries. */
+internal fun lerpColorArgbHsv(from: Int, to: Int, t: Float): Int {
+    val u = t.coerceIn(0f, 1f)
+    if (u <= 0f) return from or (0xFF shl 24)
+    if (u >= 1f) return to or (0xFF shl 24)
+    val fromHsv = rgbToHsv(from)
+    val toHsv = rgbToHsv(to)
+    val hue = when {
+        fromHsv[1] < 0.08f -> toHsv[0]
+        toHsv[1] < 0.08f -> fromHsv[0]
+        else -> {
+            var dh = toHsv[0] - fromHsv[0]
+            if (dh > 180f) dh -= 360f
+            if (dh < -180f) dh += 360f
+            ((fromHsv[0] + dh * u) + 360f) % 360f
+        }
+    }
+    val sat = fromHsv[1] + (toHsv[1] - fromHsv[1]) * u
+    val value = fromHsv[2] + (toHsv[2] - fromHsv[2]) * u
+    val a = ((from ushr 24) and 0xff) +
+        ((((to ushr 24) and 0xff) - ((from ushr 24) and 0xff)) * u).roundToInt()
+    return (a.coerceIn(0, 255) shl 24) or (hsvToRgb(hue, sat, value) and 0x00FFFFFF)
+}
+
+internal fun rgbToHsv(argb: Int): FloatArray {
+    val r = ((argb ushr 16) and 0xff) / 255f
+    val g = ((argb ushr 8) and 0xff) / 255f
+    val b = (argb and 0xff) / 255f
+    val maxC = max(r, max(g, b))
+    val minC = min(r, min(g, b))
+    val d = maxC - minC
+    val h = when {
+        d <= 1e-6f -> 0f
+        maxC == r -> ((60f * ((g - b) / d) + 360f) % 360f)
+        maxC == g -> (60f * ((b - r) / d) + 120f)
+        else -> (60f * ((r - g) / d) + 240f)
+    }
+    val s = if (maxC <= 1e-6f) 0f else d / maxC
+    return floatArrayOf(h, s, maxC)
+}
+
+internal fun hsvToRgb(h: Float, s: Float, v: Float): Int {
+    val hh = ((h % 360f) + 360f) % 360f
+    val ss = s.coerceIn(0f, 1f)
+    val vv = v.coerceIn(0f, 1f)
+    val c = vv * ss
+    val x = c * (1f - abs((hh / 60f) % 2f - 1f))
+    val m = vv - c
+    val (rp, gp, bp) = when {
+        hh < 60f -> Triple(c, x, 0f)
+        hh < 120f -> Triple(x, c, 0f)
+        hh < 180f -> Triple(0f, c, x)
+        hh < 240f -> Triple(0f, x, c)
+        hh < 300f -> Triple(x, 0f, c)
+        else -> Triple(c, 0f, x)
+    }
+    val r = ((rp + m) * 255f).roundToInt().coerceIn(0, 255)
+    val g = ((gp + m) * 255f).roundToInt().coerceIn(0, 255)
+    val b = ((bp + m) * 255f).roundToInt().coerceIn(0, 255)
+    return (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+}
 
 @Deprecated("Use activityHrLineColorArgb", ReplaceWith("activityHrLineColorArgb(heartRate, maxHr)"))
 internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int =
@@ -1513,6 +1628,13 @@ internal fun heartRateZoneColorArgb(heartRate: Int, maxHr: Int): Int =
 internal fun activityHrNormalDiffusionColorArgb(): Int = ACTIVITY_HR_DIFFUSION_NORMAL
 
 internal fun activityHrPeakDiffusionColorArgb(): Int = ACTIVITY_HR_DIFFUSION_PEAK
+
+internal fun activityHrGarminDiffusionDepthPx(
+    plotHeightPx: Float,
+    renderScale: Float = LayoutMetrics.RENDER_SCALE,
+): Float = activityHrPeakDiffusionDepthPx(plotHeightPx, renderScale)
+
+internal fun activityHrGarminDiffusionStartAlpha(): Int = 0x38
 
 /** Target ~1.25dp stroke at render scale 2 → ~2.5px. */
 internal fun activityHrStrokeWidthPx(heightPx: Int, renderScale: Float = LayoutMetrics.RENDER_SCALE): Float {
@@ -1621,6 +1743,7 @@ internal fun drawActivityHrChartBitmap(
     maxHeartRate: Int? = null,
     speedTimeline: List<ActivitySpeedPoint> = emptyList(),
     averageSpeedMetersPerSecond: Double? = null,
+    hrColorMode: ActivityHrColorMode = ActivityHrColorMode.WHITE_RED_PEAKS,
 ): Bitmap? {
     val geo = buildActivityHrChartGeometry(
         widthPx,
@@ -1727,40 +1850,69 @@ internal fun drawActivityHrChartBitmap(
     }
 
     if (geo.hasHrSeries) {
-        val normalDepth = activityHrNormalDiffusionDepthPx(plotHeight)
-        val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
-        val slate = activityHrNormalDiffusionColorArgb()
-        val peakFill = activityHrPeakDiffusionColorArgb()
-        for (i in 0 until geo.points.lastIndex) {
-            val a = geo.points[i]
-            val b = geo.points[i + 1]
-            val span = abs(b.x - a.x)
-            val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
-            for (s in 0 until steps) {
-                val t0 = s.toFloat() / steps.toFloat()
-                val t1 = (s + 1).toFloat() / steps.toFloat()
-                val x0 = a.x + (b.x - a.x) * t0
-                val x1 = a.x + (b.x - a.x) * t1
-                val y0 = a.y + (b.y - a.y) * t0
-                val y1 = a.y + (b.y - a.y) * t1
-                drawActivityHrDiffusionStrip(
-                    canvas, x0, y0, x1, y1, slate, slate, normalDepth, geo.bottom,
-                    activityHrNormalDiffusionStartAlpha(),
-                )
-                val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
-                if (activityHrPeakDiffusionSelected(midpointHr, ceiling)) {
-                    drawActivityHrDiffusionStrip(
-                        canvas, x0, y0, x1, y1, peakFill, peakFill, peakDepth, geo.bottom,
-                        activityHrPeakDiffusionStartAlpha(),
-                    )
+        when (hrColorMode) {
+            ActivityHrColorMode.WHITE_RED_PEAKS -> {
+                val normalDepth = activityHrNormalDiffusionDepthPx(plotHeight)
+                val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
+                val slate = activityHrNormalDiffusionColorArgb()
+                val peakFill = activityHrPeakDiffusionColorArgb()
+                for (i in 0 until geo.points.lastIndex) {
+                    val a = geo.points[i]
+                    val b = geo.points[i + 1]
+                    val span = abs(b.x - a.x)
+                    val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
+                    for (s in 0 until steps) {
+                        val t0 = s.toFloat() / steps.toFloat()
+                        val t1 = (s + 1).toFloat() / steps.toFloat()
+                        val x0 = a.x + (b.x - a.x) * t0
+                        val x1 = a.x + (b.x - a.x) * t1
+                        val y0 = a.y + (b.y - a.y) * t0
+                        val y1 = a.y + (b.y - a.y) * t1
+                        drawActivityHrDiffusionStrip(
+                            canvas, x0, y0, x1, y1, slate, slate, normalDepth, geo.bottom,
+                            activityHrNormalDiffusionStartAlpha(),
+                        )
+                        val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
+                        if (activityHrPeakDiffusionSelected(midpointHr, ceiling)) {
+                            drawActivityHrDiffusionStrip(
+                                canvas, x0, y0, x1, y1, peakFill, peakFill, peakDepth, geo.bottom,
+                                activityHrPeakDiffusionStartAlpha(),
+                            )
+                        }
+                    }
+                }
+            }
+            ActivityHrColorMode.GARMIN_ZONES -> {
+                val depth = activityHrGarminDiffusionDepthPx(plotHeight)
+                val alpha = activityHrGarminDiffusionStartAlpha()
+                for (i in 0 until geo.points.lastIndex) {
+                    val a = geo.points[i]
+                    val b = geo.points[i + 1]
+                    val span = abs(b.x - a.x)
+                    val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
+                    for (s in 0 until steps) {
+                        val t0 = s.toFloat() / steps.toFloat()
+                        val t1 = (s + 1).toFloat() / steps.toFloat()
+                        val x0 = a.x + (b.x - a.x) * t0
+                        val x1 = a.x + (b.x - a.x) * t1
+                        val y0 = a.y + (b.y - a.y) * t0
+                        val y1 = a.y + (b.y - a.y) * t1
+                        val hr0 = a.value + (b.value - a.value) * t0
+                        val hr1 = a.value + (b.value - a.value) * t1
+                        val c0 = activityHrLineColorArgb(hr0, ceiling, hrColorMode)
+                        val c1 = activityHrLineColorArgb(hr1, ceiling, hrColorMode)
+                        drawActivityHrDiffusionStrip(
+                            canvas, x0, y0, x1, y1, c0, c1, depth, geo.bottom, alpha,
+                        )
+                    }
                 }
             }
         }
         for (i in 0 until geo.points.lastIndex) {
             val a = geo.points[i]
             val b = geo.points[i + 1]
-            val c0 = activityHrLineColorArgb(a.value, ceiling)
-            val c1 = activityHrLineColorArgb(b.value, ceiling)
+            val c0 = activityHrLineColorArgb(a.value, ceiling, hrColorMode)
+            val c1 = activityHrLineColorArgb(b.value, ceiling, hrColorMode)
             val segPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
                 strokeWidth = hrStroke
@@ -1817,7 +1969,7 @@ internal fun drawActivityHrChartBitmap(
     if (geo.hasHrSeries) {
         geo.maxPoint?.let { peak ->
             val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = activityHrLineColorArgb(peak.value, ceiling)
+                color = activityHrLineColorArgb(peak.value, ceiling, hrColorMode)
                 style = Paint.Style.FILL
             }
             canvas.drawCircle(peak.x, peak.y, activityHrMarkerRadiusPx(geo.heightPx), marker)

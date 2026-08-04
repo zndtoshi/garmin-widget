@@ -224,6 +224,45 @@ class StorePersistenceTest {
     }
 
     @Test
+    fun settingsStore_activity_hr_color_mode_defaults_persists_and_falls_back() {
+        val store = SettingsStore(context)
+        assertEquals(ActivityHrColorMode.WHITE_RED_PEAKS, store.activityHrColorMode())
+
+        store.saveActivityHrColorMode(ActivityHrColorMode.GARMIN_ZONES)
+        assertEquals(ActivityHrColorMode.GARMIN_ZONES, SettingsStore(context).activityHrColorMode())
+
+        store.saveActivityHrColorMode(ActivityHrColorMode.WHITE_RED_PEAKS)
+        assertEquals(ActivityHrColorMode.WHITE_RED_PEAKS, SettingsStore(context).activityHrColorMode())
+
+        context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(SettingsStore.KEY_ACTIVITY_HR_COLOR_MODE, "NOT_A_MODE")
+            .commit()
+        assertEquals(ActivityHrColorMode.WHITE_RED_PEAKS, SettingsStore(context).activityHrColorMode())
+    }
+
+    @Test
+    fun settingsStore_saving_hr_color_mode_does_not_disturb_url_token_opacity() {
+        val prefs = context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(SettingsStore.KEY_BACKEND_URL, "https://example.test")
+            .putString(SettingsStore.KEY_ENCRYPTED_TOKEN, "encrypted-token-value")
+            .putInt(SettingsStore.KEY_WIDGET_OPACITY_PERCENT, 55)
+            .commit()
+
+        SettingsStore(context).saveActivityHrColorMode(ActivityHrColorMode.GARMIN_ZONES)
+
+        val after = context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
+        assertEquals("https://example.test", after.getString(SettingsStore.KEY_BACKEND_URL, null))
+        assertEquals("encrypted-token-value", after.getString(SettingsStore.KEY_ENCRYPTED_TOKEN, null))
+        assertEquals(55, after.getInt(SettingsStore.KEY_WIDGET_OPACITY_PERCENT, -1))
+        assertEquals(
+            ActivityHrColorMode.GARMIN_ZONES.storageValue,
+            after.getString(SettingsStore.KEY_ACTIVITY_HR_COLOR_MODE, null),
+        )
+    }
+
+    @Test
     fun settingsStore_corrupt_opacity_string_returns_default() {
         context.getSharedPreferences(SettingsStore.PREFS_NAME, Context.MODE_PRIVATE)
             .edit()

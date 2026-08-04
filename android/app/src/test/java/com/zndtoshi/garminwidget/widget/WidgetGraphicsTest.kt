@@ -1,6 +1,7 @@
 package com.zndtoshi.garminwidget.widget
 
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
+import com.zndtoshi.garminwidget.data.ActivityHrColorMode
 import com.zndtoshi.garminwidget.data.ActivitySpeedPoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
@@ -260,6 +261,14 @@ class WidgetGraphicsTest {
         assertEquals(ACTIVITY_HR_LINE_PEAK, activityHrLineColorArgb(190, maxHr))
         assertTrue(isActivityHrPeak(190, maxHr))
         assertEquals(ACTIVITY_HR_LINE_PEAK, activityHrLineColorArgb(200, maxHr))
+        assertEquals(
+            ACTIVITY_HR_LINE_NORMAL,
+            activityHrLineColorArgb(100, maxHr, ActivityHrColorMode.WHITE_RED_PEAKS),
+        )
+        assertEquals(
+            ACTIVITY_HR_LINE_PEAK,
+            activityHrLineColorArgb(190, maxHr, ActivityHrColorMode.WHITE_RED_PEAKS),
+        )
         assertEquals(0xFFC8D0D6.toInt(), ACTIVITY_HR_LINE_NORMAL)
         assertEquals(0xFF52616B.toInt(), ACTIVITY_HR_DIFFUSION_NORMAL)
         assertEquals(0xFFF4514F.toInt(), ACTIVITY_HR_LINE_PEAK)
@@ -268,6 +277,46 @@ class WidgetGraphicsTest {
         assertEquals(ACTIVITY_HR_DIFFUSION_PEAK, activityHrPeakDiffusionColorArgb())
         assertFalse(activityHrPeakDiffusionSelected(189.8f, maxHr))
         assertTrue(activityHrPeakDiffusionSelected(190f, maxHr))
+    }
+
+    @Test
+    fun `garmin hr zone colors use continuous ramp at anchors and midpoints`() {
+        assertEquals(GARMIN_HR_ZONE_GREY, activityHrGarminZoneColorArgb(0.60f))
+        assertEquals(GARMIN_HR_ZONE_BLUE, activityHrGarminZoneColorArgb(0.70f))
+        assertEquals(GARMIN_HR_ZONE_GREEN, activityHrGarminZoneColorArgb(0.80f))
+        assertEquals(GARMIN_HR_ZONE_ORANGE, activityHrGarminZoneColorArgb(0.90f))
+        assertEquals(GARMIN_HR_ZONE_RED, activityHrGarminZoneColorArgb(1.00f))
+        assertEquals(GARMIN_HR_ZONE_GREY, activityHrGarminZoneColorArgb(0f))
+        assertEquals(GARMIN_HR_ZONE_GREY, activityHrGarminZoneColorArgb(-1f))
+        assertEquals(GARMIN_HR_ZONE_RED, activityHrGarminZoneColorArgb(1.5f))
+
+        val at65 = activityHrGarminZoneColorArgb(0.65f)
+        val at75 = activityHrGarminZoneColorArgb(0.75f)
+        val at85 = activityHrGarminZoneColorArgb(0.85f)
+        val at95 = activityHrGarminZoneColorArgb(0.95f)
+        assertTrue(at65 != GARMIN_HR_ZONE_GREY && at65 != GARMIN_HR_ZONE_BLUE)
+        assertTrue(at75 != GARMIN_HR_ZONE_BLUE && at75 != GARMIN_HR_ZONE_GREEN)
+        assertTrue(at85 != GARMIN_HR_ZONE_GREEN && at85 != GARMIN_HR_ZONE_ORANGE)
+        assertTrue(at95 != GARMIN_HR_ZONE_ORANGE && at95 != GARMIN_HR_ZONE_RED)
+
+        val maxHr = 200
+        assertEquals(
+            GARMIN_HR_ZONE_GREY,
+            activityHrLineColorArgb(100, maxHr, ActivityHrColorMode.GARMIN_ZONES),
+        )
+        assertEquals(
+            GARMIN_HR_ZONE_BLUE,
+            activityHrLineColorArgb(140, maxHr, ActivityHrColorMode.GARMIN_ZONES),
+        )
+        assertEquals(
+            GARMIN_HR_ZONE_RED,
+            activityHrLineColorArgb(200, maxHr, ActivityHrColorMode.GARMIN_ZONES),
+        )
+        // Invalid ceiling still yields a finite color via coerceAtLeast(1).
+        assertEquals(
+            GARMIN_HR_ZONE_RED,
+            activityHrLineColorArgb(200, 0, ActivityHrColorMode.GARMIN_ZONES),
+        )
     }
 
     @Test

@@ -16,6 +16,7 @@ Phase 8A backend data contract is merged, deployed, and live-verified. Phase 8B/
 - Cached-data preservation across network and authentication failures
 - Widget-body launch into Garmin Connect, with browser fallback
 - Background opacity control (0-100%) persisted locally with immediate widget refresh
+- Activity HR chart color mode (`White + red peaks` default, or `Garmin HR zones`) persisted locally; zone colors are percentage bands of the resolved max-HR ceiling, not personal Garmin zone settings
 - **Backend-first additive compatibility**: parser + cache handle deployed additive fields plus optional `lastActivity.heartRateTimeline` while preserving original-field compatibility. Sleep shows ring + total duration only (no stage legend).
 
 The app never stores Garmin credentials and never contacts Garmin directly.

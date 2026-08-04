@@ -48,6 +48,7 @@ Implemented now:
 - Kotlin/Jetpack Glance Android app with encrypted bearer-token storage
 - Local widget payload cache, manual WorkManager refresh, and Garmin Connect launch action
 - Glance-managed observable state for deterministic UI updates
+- Local config preferences: background opacity and activity HR chart color mode (`WHITE_RED_PEAKS` default, or continuous `GARMIN_ZONES` percentage bands of resolved max HR — not personal Garmin zone settings)
 - Android unit tests (including expanded-response backward-compat), lint validation, Gradle wrapper, and debug APK build
 
 Not implemented yet:

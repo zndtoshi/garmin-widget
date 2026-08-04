@@ -36,11 +36,25 @@ class SettingsStore(context: Context) {
         prefs.edit().putInt(KEY_WIDGET_OPACITY_PERCENT, clampOpacity(value)).commit()
     }
 
+    fun activityHrColorMode(): ActivityHrColorMode {
+        if (!prefs.contains(KEY_ACTIVITY_HR_COLOR_MODE)) {
+            return ActivityHrColorMode.DEFAULT
+        }
+        val stored = runCatching { prefs.getString(KEY_ACTIVITY_HR_COLOR_MODE, null) }
+            .getOrNull()
+        return ActivityHrColorMode.fromStorage(stored)
+    }
+
+    fun saveActivityHrColorMode(mode: ActivityHrColorMode) {
+        prefs.edit().putString(KEY_ACTIVITY_HR_COLOR_MODE, mode.storageValue).commit()
+    }
+
     companion object {
         const val PREFS_NAME = "garmin_widget_settings"
         const val KEY_BACKEND_URL = "backend_url"
         const val KEY_ENCRYPTED_TOKEN = "encrypted_token"
         const val KEY_WIDGET_OPACITY_PERCENT = "widget_opacity_percent"
+        const val KEY_ACTIVITY_HR_COLOR_MODE = "activity_hr_color_mode"
         const val DEFAULT_BACKEND_URL = "https://garmin.zndtoshi.com"
         const val DEFAULT_WIDGET_OPACITY_PERCENT = 88
 

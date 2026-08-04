@@ -9,15 +9,20 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,12 +32,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkManager
+import com.zndtoshi.garminwidget.data.ActivityHrColorMode
 import com.zndtoshi.garminwidget.data.SettingsStore
 import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.ui.refreshResultText
@@ -85,6 +93,7 @@ private fun ConfigurationScreen(
     var backendUrl by remember { mutableStateOf(settings.backendUrl()) }
     var token by remember { mutableStateOf("") }
     var opacityPercent by remember { mutableStateOf(settings.widgetOpacityPercent().toFloat()) }
+    var hrColorMode by remember { mutableStateOf(settings.activityHrColorMode()) }
     var message by remember {
         mutableStateOf(if (settings.isConfigured()) "A private token is already saved." else "Enter your private widget token.")
     }
@@ -95,6 +104,7 @@ private fun ConfigurationScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.Center,
     ) {
@@ -146,12 +156,36 @@ private fun ConfigurationScreen(
             valueRange = 0f..100f,
             modifier = Modifier.fillMaxWidth(),
         )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "Activity heart-rate colors",
+            style = MaterialTheme.typography.titleSmall,
+            color = scheme.onBackground,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Colors use percentage bands of the chart's resolved max HR, not your Garmin zone settings.",
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+        HrColorModeOption(
+            label = "White + red peaks",
+            selected = hrColorMode == ActivityHrColorMode.WHITE_RED_PEAKS,
+            onSelect = { hrColorMode = ActivityHrColorMode.WHITE_RED_PEAKS },
+        )
+        HrColorModeOption(
+            label = "Garmin HR zones",
+            selected = hrColorMode == ActivityHrColorMode.GARMIN_ZONES,
+            onSelect = { hrColorMode = ActivityHrColorMode.GARMIN_ZONES },
+        )
         Spacer(Modifier.height(12.dp))
         Button(
             onClick = {
                 runCatching {
                     settings.save(backendUrl, token.takeIf(String::isNotBlank))
                     settings.saveWidgetOpacityPercent(opacityPercent.toInt())
+                    settings.saveActivityHrColorMode(hrColorMode)
                 }.onSuccess {
                     token = ""
                     message = "Saved securely. Refreshing the widget…"
@@ -199,6 +233,36 @@ private fun ConfigurationScreen(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun HrColorModeOption(
+    label: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(
+                selected = selected,
+                onClick = onSelect,
+                role = Role.RadioButton,
+            )
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null,
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.padding(start = 4.dp),
         )
     }
 }

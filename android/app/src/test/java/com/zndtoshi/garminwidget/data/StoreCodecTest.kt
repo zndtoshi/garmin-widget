@@ -41,4 +41,21 @@ class StoreCodecTest {
         assertEquals(100, SettingsStore.clampOpacity(101))
         assertEquals(64, SettingsStore.clampOpacity(64))
     }
+
+    @Test
+    fun activity_hr_color_mode_codec_defaults_and_known_values() {
+        assertEquals(ActivityHrColorMode.WHITE_RED_PEAKS, ActivityHrColorMode.fromStorage(null))
+        assertEquals(ActivityHrColorMode.WHITE_RED_PEAKS, ActivityHrColorMode.fromStorage(""))
+        assertEquals(ActivityHrColorMode.WHITE_RED_PEAKS, ActivityHrColorMode.fromStorage("corrupt"))
+        assertEquals(
+            ActivityHrColorMode.WHITE_RED_PEAKS,
+            ActivityHrColorMode.fromStorage("WHITE_RED_PEAKS"),
+        )
+        assertEquals(
+            ActivityHrColorMode.GARMIN_ZONES,
+            ActivityHrColorMode.fromStorage("GARMIN_ZONES"),
+        )
+        assertEquals("WHITE_RED_PEAKS", ActivityHrColorMode.WHITE_RED_PEAKS.storageValue)
+        assertEquals("GARMIN_ZONES", ActivityHrColorMode.GARMIN_ZONES.storageValue)
+    }
 }
