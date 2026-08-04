@@ -32,10 +32,7 @@ internal data class RingSegment(
 )
 
 internal fun sleepRingRemLabelAngle(segment: RingSegment): Float {
-    val edgePadding = min(6f, segment.sweepDegrees * 0.15f)
-    val firstSafeAngle = segment.startDegrees + edgePadding
-    val lastSafeAngle = segment.startDegrees + segment.sweepDegrees - edgePadding
-    return 180f.coerceIn(firstSafeAngle, lastSafeAngle)
+    return segment.startDegrees + segment.sweepDegrees / 2f
 }
 
 internal data class ChartPoint(
@@ -396,7 +393,7 @@ internal fun drawSleepRingBitmap(
     if (remSegment != null && !remDurationLabel.isNullOrBlank()) {
         val center = safe / 2f
         // The arc itself is centered at safe / 2 - stroke. Keep the label on that
-        // centerline (not the outer edge), and favor the ring's far-left position.
+        // centerline (not the outer edge) and in the middle of the REM segment.
         val radius = center - stroke
         val labelDegrees = sleepRingRemLabelAngle(remSegment)
         val midpointRadians = Math.toRadians(labelDegrees.toDouble())

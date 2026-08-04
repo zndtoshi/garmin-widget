@@ -46,10 +46,10 @@ class WidgetGraphicsTest {
     }
 
     @Test
-    fun `rem duration label favors far left while staying inside its arc`() {
+    fun `rem duration label stays in the middle of its arc`() {
         assertEquals(180f, sleepRingRemLabelAngle(RingSegment(130f, 100f, WidgetPalette.rem)), 0.01f)
-        assertEquals(156f, sleepRingRemLabelAngle(RingSegment(120f, 42f, WidgetPalette.rem)), 0.01f)
-        assertEquals(204f, sleepRingRemLabelAngle(RingSegment(198f, 42f, WidgetPalette.rem)), 0.01f)
+        assertEquals(141f, sleepRingRemLabelAngle(RingSegment(120f, 42f, WidgetPalette.rem)), 0.01f)
+        assertEquals(219f, sleepRingRemLabelAngle(RingSegment(198f, 42f, WidgetPalette.rem)), 0.01f)
     }
 
     @Test
