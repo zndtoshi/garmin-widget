@@ -612,6 +612,10 @@ class WidgetGraphicsTest {
             activityChartDrawOrder(),
         )
         assertEquals(0xFF42A5F5.toInt(), ACTIVITY_SPEED_LINE)
+        assertEquals("18.0", activitySpeedMaxKmhLabel(5.0))
+        assertEquals("234.1", activitySpeedMaxKmhLabel(65.0277778))
+        assertNull(activitySpeedMaxKmhLabel(0.0))
+        assertNull(activitySpeedMaxKmhLabel(Double.NaN))
         assertTrue(activitySpeedStrokeWidthPx(2.5f) <= 2.5f)
         assertFalse(
             buildActivityHrChartGeometry(

@@ -1354,6 +1354,11 @@ internal val ACTIVITY_SPEED_FILL = 0xFF42A5F5.toInt()
 internal const val ACTIVITY_HR_PEAK_RATIO = 0.95f
 internal const val ACTIVITY_SPEED_HEIGHT_FRACTION = 0.50f
 
+internal fun activitySpeedMaxKmhLabel(maxSpeedMps: Double): String? {
+    if (!maxSpeedMps.isFinite() || maxSpeedMps <= 0.0) return null
+    return String.format(Locale.US, "%.1f", maxSpeedMps * 3.6)
+}
+
 internal enum class ActivityChartLayer {
     SPEED_FILL,
     SPEED_LINE,
@@ -1673,6 +1678,24 @@ internal fun drawActivityHrChartBitmap(
         }
     }
     canvas.restore()
+
+    if (geo.hasSpeedSeries) {
+        activitySpeedMaxKmhLabel(geo.maxSpeedMps)?.let { maxKmh ->
+            val speedCeilingY = geo.bottom - ACTIVITY_SPEED_HEIGHT_FRACTION * (geo.bottom - geo.top)
+            val speedLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = ACTIVITY_SPEED_LINE
+                textSize = 9f
+                textAlign = Paint.Align.RIGHT
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                setShadowLayer(1f, 0f, 0f, 0xCC000000.toInt())
+            }
+            canvas.drawText(maxKmh, geo.right - 3f, speedCeilingY + 9f, speedLabelPaint)
+            speedLabelPaint.typeface = Typeface.DEFAULT
+            speedLabelPaint.textSize = 7.5f
+            canvas.drawText("km/h", geo.right - 3f, speedCeilingY + 17f, speedLabelPaint)
+            canvas.drawText("0", geo.right - 3f, geo.bottom - 3f, speedLabelPaint)
+        }
+    }
 
     if (geo.hasHrSeries) {
         geo.maxPoint?.let { peak ->
