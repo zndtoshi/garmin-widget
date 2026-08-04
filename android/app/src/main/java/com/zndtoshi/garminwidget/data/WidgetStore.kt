@@ -116,6 +116,21 @@ class WidgetStore(context: Context) {
         next
     }
 
+    /**
+     * Opening Garmin Connect is an explicit request to sync current health data.
+     * Restore today's Body Battery card even if the user previously dismissed it;
+     * the delayed cloud refresh will then replace its cached values in place.
+     */
+    fun restoreBodyBatteryCard(): LowerCardState = synchronized(STATE_LOCK) {
+        val current = read()
+        val next = current.lowerCard.copy(
+            selected = LowerCardKind.BODY_BATTERY,
+            dismissedMorningIdentity = null,
+        )
+        applyLowerCardState(next)
+        next
+    }
+
     private fun readLowerCardState(cached: WidgetResponse?): LowerCardState {
         val stateVersion = prefs.getInt(KEY_LOWER_CARD_STATE_VERSION, 0)
         val dismissedActivity = prefs.getString(KEY_DISMISSED_ACTIVITY_IDENTITY, null)

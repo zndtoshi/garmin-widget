@@ -110,6 +110,25 @@ class StorePersistenceTest {
     }
 
     @Test
+    fun opening_garmin_restores_dismissed_body_battery_card() {
+        val store = WidgetStore(context)
+        val morning = """
+            {"schemaVersion":1,"date":"2026-08-04","bodyBattery":88,
+             "sleepScore":76,"sleepDurationSeconds":21480}
+        """.trimIndent()
+        assertTrue(store.saveSuccessAndReconcile(morning))
+        store.dismissVisibleLowerCard()
+        assertEquals(LowerCardKind.NONE, store.read().lowerCard.selected)
+        assertEquals("2026-08-04", store.read().lowerCard.dismissedMorningIdentity)
+
+        store.restoreBodyBatteryCard()
+
+        val restored = WidgetStore(context).read().lowerCard
+        assertEquals(LowerCardKind.BODY_BATTERY, restored.selected)
+        assertEquals(null, restored.dismissedMorningIdentity)
+    }
+
+    @Test
     fun malformed_success_payload_preserves_cached_data_and_lower_card_state() {
         val store = WidgetStore(context)
         val valid = """

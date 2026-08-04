@@ -67,19 +67,22 @@ object RefreshScheduler {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
-        val request = OneTimeWorkRequestBuilder<RefreshWorker>()
-            .setInitialDelay(GARMIN_SYNC_REFRESH_DELAY_MINUTES, TimeUnit.MINUTES)
-            .setConstraints(constraints)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            GARMIN_SYNC_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            request,
-        )
+        val workManager = WorkManager.getInstance(context)
+        GARMIN_SYNC_REFRESH_DELAYS_SECONDS.forEachIndexed { index, delaySeconds ->
+            val request = OneTimeWorkRequestBuilder<RefreshWorker>()
+                .setInitialDelay(delaySeconds, TimeUnit.SECONDS)
+                .setConstraints(constraints)
+                .build()
+            workManager.enqueueUniqueWork(
+                "$GARMIN_SYNC_WORK_NAME-$index",
+                ExistingWorkPolicy.REPLACE,
+                request,
+            )
+        }
     }
 
     internal const val AUTOMATIC_REFRESH_INTERVAL_MINUTES = 15L
-    internal const val GARMIN_SYNC_REFRESH_DELAY_MINUTES = 2L
+    internal val GARMIN_SYNC_REFRESH_DELAYS_SECONDS = listOf(45L, 180L)
     internal const val PERIODIC_WORK_NAME = "garmin-widget-periodic-refresh"
     internal const val GARMIN_SYNC_WORK_NAME = "garmin-widget-after-garmin-sync"
     private const val UNIQUE_WORK_NAME = "garmin-widget-manual-refresh"

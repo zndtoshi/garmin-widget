@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
+import com.zndtoshi.garminwidget.data.WidgetStore
 import com.zndtoshi.garminwidget.work.RefreshScheduler
 
 class OpenGarminAction : ActionCallback {
@@ -30,6 +31,8 @@ class OpenGarminAction : ActionCallback {
             Intent(Intent.ACTION_VIEW, Uri.parse(GARMIN_CONNECT_URL))
         }
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        WidgetStore(context).restoreBodyBatteryCard()
+        bumpWidgetRefreshRevision(context)
         RefreshScheduler.scheduleAfterGarminConnect(context)
         context.startActivity(intent)
     }

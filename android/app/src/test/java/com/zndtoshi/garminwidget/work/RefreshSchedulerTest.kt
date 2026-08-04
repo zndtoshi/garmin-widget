@@ -13,7 +13,7 @@ class RefreshSchedulerTest {
 
     @Test
     fun `opening Garmin schedules refresh after cloud sync window`() {
-        assertEquals(2L, RefreshScheduler.GARMIN_SYNC_REFRESH_DELAY_MINUTES)
+        assertEquals(listOf(45L, 180L), RefreshScheduler.GARMIN_SYNC_REFRESH_DELAYS_SECONDS)
         assertTrue(RefreshScheduler.GARMIN_SYNC_WORK_NAME.contains("garmin-sync"))
     }
 }
