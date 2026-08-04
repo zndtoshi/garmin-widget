@@ -110,17 +110,12 @@ internal fun dismissLowerCard(
     response: WidgetResponse?,
     state: LowerCardState,
 ): LowerCardState {
-    return when (resolveVisibleLowerCard(response, state)) {
-        LowerCardKind.BODY_BATTERY -> state.copy(
-            selected = LowerCardKind.NONE,
-            dismissedMorningIdentity = morningIdentity(response),
-        )
-        LowerCardKind.ACTIVITY -> state.copy(
-            selected = LowerCardKind.NONE,
-            dismissedActivityIdentity = activityIdentity(response?.lastActivity),
-        )
-        LowerCardKind.NONE -> state
-    }
+    if (resolveVisibleLowerCard(response, state) == LowerCardKind.NONE) return state
+    return state.copy(
+        selected = LowerCardKind.NONE,
+        dismissedMorningIdentity = morningIdentity(response) ?: state.dismissedMorningIdentity,
+        dismissedActivityIdentity = activityIdentity(response?.lastActivity) ?: state.dismissedActivityIdentity,
+    )
 }
 
 /**

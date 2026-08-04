@@ -129,6 +129,30 @@ class StorePersistenceTest {
     }
 
     @Test
+    fun closing_either_lower_card_persists_dismissal_of_both_cards() {
+        val store = WidgetStore(context)
+        val payload = """
+            {"schemaVersion":1,"date":"2026-08-04","bodyBattery":88,
+             "sleepScore":76,"sleepDurationSeconds":21480,
+             "lastActivity":{"name":"Ride","typeKey":"cycling","startedAt":"2026-08-04T06:00:00Z"}}
+        """.trimIndent()
+        assertTrue(store.saveSuccessAndReconcile(payload))
+        assertEquals(LowerCardKind.ACTIVITY, store.read().lowerCard.selected)
+
+        store.dismissVisibleLowerCard()
+
+        val persisted = WidgetStore(context).read()
+        assertEquals(LowerCardKind.NONE, persisted.lowerCard.selected)
+        assertEquals(morningIdentity(persisted.data), persisted.lowerCard.dismissedMorningIdentity)
+        assertEquals(
+            activityIdentity(persisted.data?.lastActivity),
+            persisted.lowerCard.dismissedActivityIdentity,
+        )
+        assertFalse(isMorningEligible(persisted.data, persisted.lowerCard))
+        assertFalse(isActivityEligible(persisted.data, persisted.lowerCard))
+    }
+
+    @Test
     fun malformed_success_payload_preserves_cached_data_and_lower_card_state() {
         val store = WidgetStore(context)
         val valid = """

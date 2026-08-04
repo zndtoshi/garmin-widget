@@ -49,6 +49,7 @@ Implemented now:
 - Local widget payload cache, manual WorkManager refresh, and Garmin Connect launch action
 - Glance-managed observable state for deterministic UI updates
 - Local config preferences: background opacity and activity HR chart color mode (`WHITE_RED_PEAKS` default, or continuous `GARMIN_ZONES` percentage bands reaching pure red at 95% of resolved max HR — not personal Garmin zone settings)
+- A single lower-card close action dismisses both the current Body Battery and last-activity cards until a new event or explicit restore action makes one available again
 - Android unit tests (including expanded-response backward-compat), lint validation, Gradle wrapper, and debug APK build
 
 Not implemented yet:

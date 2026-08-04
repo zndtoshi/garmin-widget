@@ -136,14 +136,24 @@ class LowerCardStateTest {
     }
 
     @Test
-    fun dismiss_leaves_row_empty_without_revealing_alternate() {
+    fun dismiss_hides_both_available_lower_cards_with_one_press() {
         val data = response()
         val afterDismiss = dismissLowerCard(
             data,
             LowerCardState(selected = LowerCardKind.ACTIVITY),
         )
         assertEquals(LowerCardKind.NONE, resolveVisibleLowerCard(data, afterDismiss))
-        assertTrue(isMorningEligible(data, afterDismiss))
+        assertFalse(isMorningEligible(data, afterDismiss))
+        assertFalse(isActivityEligible(data, afterDismiss))
+        assertEquals(morningIdentity(data), afterDismiss.dismissedMorningIdentity)
+        assertEquals(activityIdentity(data.lastActivity), afterDismiss.dismissedActivityIdentity)
+
+        val dismissedFromBodyBattery = dismissLowerCard(
+            data,
+            LowerCardState(selected = LowerCardKind.BODY_BATTERY),
+        )
+        assertFalse(isMorningEligible(data, dismissedFromBodyBattery))
+        assertFalse(isActivityEligible(data, dismissedFromBodyBattery))
     }
 
     @Test
