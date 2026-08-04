@@ -431,16 +431,28 @@ private fun HrvGraphImage(
 private fun ActivityHrChartImage(
     timeline: List<com.zndtoshi.garminwidget.data.ActivityHeartRatePoint>,
     speedTimeline: List<com.zndtoshi.garminwidget.data.ActivitySpeedPoint> = emptyList(),
+    averageSpeedMetersPerSecond: Double? = null,
     widthDp: Dp,
     heightDp: Dp,
     maxHeartRate: Int?,
 ) {
     if (heightDp.value < 8f) return
     val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
-    val bitmap = drawActivityHrChartBitmap(wPx, hPx, timeline, maxHeartRate, speedTimeline) ?: return
+    val bitmap = drawActivityHrChartBitmap(
+        wPx,
+        hPx,
+        timeline,
+        maxHeartRate,
+        speedTimeline,
+        averageSpeedMetersPerSecond,
+    ) ?: return
     Image(
         provider = ImageProvider(bitmap),
-        contentDescription = activityChartContentDescription(timeline, speedTimeline),
+        contentDescription = activityChartContentDescription(
+            timeline,
+            speedTimeline,
+            averageSpeedMetersPerSecond,
+        ),
         modifier = GlanceModifier.width(widthDp).height(heightDp),
     )
 }
@@ -653,6 +665,7 @@ private fun ActivityStrip(
                 ActivityHrChartImage(
                     timeline = activity.heartRateTimeline,
                     speedTimeline = activity.speedTimeline,
+                    averageSpeedMetersPerSecond = activity.averageSpeedMetersPerSecond,
                     widthDp = chartWidthDp,
                     heightDp = hrChartHeightDp,
                     maxHeartRate = activity.maxHeartRate,

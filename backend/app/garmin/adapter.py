@@ -29,8 +29,9 @@ from app.models.domain import (
 EndpointStatus = Literal["ok", "unavailable"]
 
 ACTIVITY_DETAILS_MAX_CHART = 2000
-ACTIVITY_HR_TIMELINE_MAX_POINTS = 48
-ACTIVITY_SPEED_TIMELINE_MAX_POINTS = 48
+ACTIVITY_HR_TIMELINE_MAX_POINTS = 240
+ACTIVITY_SPEED_TIMELINE_MAX_POINTS = 240
+DAILY_TIMELINE_MAX_POINTS = 192
 ACTIVITY_HR_MIN = 20
 ACTIVITY_HR_MAX = 250
 ACTIVITY_SPEED_MIN_MPS = 0.0
@@ -107,7 +108,10 @@ class GarminMetricsAdapter:
         sleep_stages = _extract_sleep_stages(sleep)
         overnight_hrv, hrv_status = _extract_hrv(hrv)
         hrv_trend = _build_hrv_trend(
-            metric_date, hrv, previous_hrv_trend, self,
+            metric_date,
+            hrv,
+            previous_hrv_trend,
+            self,
         )
         summary_body_battery = _extract_body_battery(stats)
         body_battery_value = (
@@ -164,13 +168,9 @@ class GarminMetricsAdapter:
         try:
             return method(*args), "ok"
         except GarminConnectAuthenticationError as exc:
-            raise GarminAuthenticationFailedError(
-                "Garmin authentication failed."
-            ) from exc
+            raise GarminAuthenticationFailedError("Garmin authentication failed.") from exc
         except GarminConnectTooManyRequestsError as exc:
-            raise GarminRateLimitError(
-                "Garmin temporarily rate-limited metric fetching."
-            ) from exc
+            raise GarminRateLimitError("Garmin temporarily rate-limited metric fetching.") from exc
         except GarminConnectConnectionError as exc:
             if _looks_like_network_error(exc):
                 raise GarminNetworkError(
@@ -219,7 +219,8 @@ def _extract_sleep_stages(payload: Any) -> SleepStagesInternal | None:
 
 
 def _extract_hrv_point(
-    hrv_date: date, payload: Any,
+    hrv_date: date,
+    payload: Any,
 ) -> HrvTrendPointInternal | None:
     if not isinstance(payload, dict):
         return None
@@ -229,9 +230,7 @@ def _extract_hrv_point(
     weekly = _as_int(source.get("weeklyAvg"))
     status_raw = source.get("status")
     status = (
-        status_raw.strip().upper()
-        if isinstance(status_raw, str) and status_raw.strip()
-        else None
+        status_raw.strip().upper() if isinstance(status_raw, str) and status_raw.strip() else None
     )
     if overnight is None and weekly is None and status is None:
         return None
@@ -255,9 +254,7 @@ def _build_hrv_trend(
     today_point = _extract_hrv_point(metric_date, today_hrv_payload)
     cutoff = metric_date - timedelta(days=history_days - 1)
     points_by_date = {
-        point.date: point
-        for point in (previous_trend or [])
-        if cutoff <= point.date <= metric_date
+        point.date: point for point in (previous_trend or []) if cutoff <= point.date <= metric_date
     }
 
     # Replace today's cached value with the freshly fetched summary. A placeholder
@@ -276,9 +273,7 @@ def _build_hrv_trend(
 
     trend = [points_by_date[d] for d in sorted(points_by_date)]
     has_data = any(
-        p.overnight_average is not None
-        or p.seven_day_average is not None
-        or p.status is not None
+        p.overnight_average is not None or p.seven_day_average is not None or p.status is not None
         for p in trend
     )
     return trend if has_data else None
@@ -311,7 +306,7 @@ def _extract_body_battery_timeline(
 
     if not points:
         return None
-    return _sort_dedup_and_downsample(points, max_points=48)
+    return _sort_dedup_and_downsample(points, max_points=DAILY_TIMELINE_MAX_POINTS)
 
 
 def _extract_stress_timeline(payload: Any) -> list[TimelinePointInternal] | None:
@@ -333,11 +328,13 @@ def _extract_stress_timeline(payload: Any) -> list[TimelinePointInternal] | None
 
     if not points:
         return None
-    return _sort_dedup_and_downsample(points, max_points=48)
+    return _sort_dedup_and_downsample(points, max_points=DAILY_TIMELINE_MAX_POINTS)
 
 
 def _sort_dedup_and_downsample(
-    points: list[TimelinePointInternal], *, max_points: int,
+    points: list[TimelinePointInternal],
+    *,
+    max_points: int,
 ) -> list[TimelinePointInternal]:
     points.sort(key=lambda p: p.timestamp)
     deduped: dict[datetime, TimelinePointInternal] = {}
@@ -346,12 +343,15 @@ def _sort_dedup_and_downsample(
     sorted_points = sorted(deduped.values(), key=lambda p: p.timestamp)
     if not sorted_points:
         return []
-    return _downsample(sorted_points, max_points=max_points)
+    return _downsample_extrema_timeline(sorted_points, max_points=max_points)
 
 
 def _downsample(
-    points: list[TimelinePointInternal], *, max_points: int,
+    points: list[TimelinePointInternal],
+    *,
+    max_points: int,
 ) -> list[TimelinePointInternal]:
+    """Uniform first/last downsample kept for tests; prefer extrema-aware path."""
     if len(points) <= max_points:
         return points
     first = points[0]
@@ -367,6 +367,51 @@ def _downsample(
         result.append(middle[idx])
     result.append(last)
     return result
+
+
+def _downsample_extrema_timeline(
+    points: list[TimelinePointInternal],
+    *,
+    max_points: int,
+) -> list[TimelinePointInternal]:
+    if len(points) <= max_points:
+        return points
+    indices = _extrema_aware_indices([float(point.value) for point in points], max_points)
+    return [points[i] for i in indices]
+
+
+def _extrema_aware_indices(values: list[float], max_points: int) -> list[int]:
+    """Time-distributed min/max buckets with strict endpoint and size guarantees."""
+    n = len(values)
+    if max_points <= 0 or n == 0:
+        return []
+    if n <= max_points:
+        return list(range(n))
+    if max_points == 1:
+        return [0]
+    if max_points == 2:
+        return [0, n - 1]
+
+    keep = {0, n - 1}
+    interior_count = n - 2
+    bucket_count = max(1, (max_points - 2) // 2)
+    for bucket in range(bucket_count):
+        start = 1 + (bucket * interior_count) // bucket_count
+        end = 1 + ((bucket + 1) * interior_count) // bucket_count
+        indices = range(start, max(start + 1, end))
+        min_index = min(indices, key=lambda i: (values[i], i))
+        max_index = max(indices, key=lambda i: (values[i], -i))
+        keep.add(min_index)
+        keep.add(max_index)
+
+    if len(keep) < max_points:
+        remaining = [i for i in range(1, n - 1) if i not in keep]
+        need = min(max_points - len(keep), len(remaining))
+        for pick in range(need):
+            index = ((pick + 1) * len(remaining)) // (need + 1)
+            keep.add(remaining[index])
+
+    return sorted(keep)[:max_points]
 
 
 def _extract_last_activity(payload: Any) -> LastActivityInternal | None:
@@ -541,7 +586,8 @@ def _sort_dedup_downsample_hr(
     points: list[ActivityHeartRatePointInternal],
     max_points: int,
 ) -> list[ActivityHeartRatePointInternal]:
-    ordered = sorted(points, key=lambda p: (p.elapsed_seconds, p.heart_rate))
+    # Prefer higher HR at equal elapsed so brief spikes survive dedupe.
+    ordered = sorted(points, key=lambda p: (p.elapsed_seconds, -p.heart_rate))
     deduped: list[ActivityHeartRatePointInternal] = []
     seen: set[int] = set()
     for point in ordered:
@@ -549,21 +595,12 @@ def _sort_dedup_downsample_hr(
             continue
         seen.add(point.elapsed_seconds)
         deduped.append(point)
+    deduped.sort(key=lambda p: p.elapsed_seconds)
     if len(deduped) <= max_points:
         return deduped
-    first = deduped[0]
-    last = deduped[-1]
-    middle = deduped[1:-1]
-    picks = max_points - 2
-    if picks <= 0:
-        return [first, last]
-    step = (len(middle) - 1) / (picks - 1) if picks > 1 else 0
-    result: list[ActivityHeartRatePointInternal] = [first]
-    for i in range(picks):
-        idx = int(i * step) if picks > 1 else 0
-        result.append(middle[idx])
-    result.append(last)
-    return result
+
+    indices = _extrema_aware_indices([float(point.heart_rate) for point in deduped], max_points)
+    return [deduped[i] for i in indices]
 
 
 def _sort_dedup_downsample_speed(
@@ -586,40 +623,10 @@ def _sort_dedup_downsample_speed(
     if len(deduped) <= max_points:
         return deduped
 
-    n = len(deduped)
-    max_i = max(range(n), key=lambda i: deduped[i].speed_meters_per_second)
-    mandatory = {0, n - 1, max_i}
-
-    extrema: list[tuple[float, int]] = []
-    for i in range(1, n - 1):
-        v = deduped[i].speed_meters_per_second
-        prev = deduped[i - 1].speed_meters_per_second
-        nxt = deduped[i + 1].speed_meters_per_second
-        is_peak = (v >= prev and v > nxt) or (v > prev and v >= nxt)
-        is_valley = (v <= prev and v < nxt) or (v < prev and v <= nxt)
-        if is_peak or is_valley:
-            prominence = abs(v - prev) + abs(v - nxt)
-            extrema.append((prominence, i))
-
-    keep = set(mandatory)
-    for _, idx in sorted(extrema, key=lambda item: (-item[0], item[1])):
-        if len(keep) >= max_points:
-            break
-        keep.add(idx)
-
-    if len(keep) < max_points:
-        remaining = [i for i in range(n) if i not in keep]
-        need = max_points - len(keep)
-        if remaining and need > 0:
-            if need >= len(remaining):
-                keep.update(remaining)
-            else:
-                step = (len(remaining) - 1) / (need - 1) if need > 1 else 0
-                for i in range(need):
-                    pick = int(i * step) if need > 1 else 0
-                    keep.add(remaining[pick])
-
-    return [deduped[i] for i in sorted(keep)[:max_points]]
+    indices = _extrema_aware_indices(
+        [point.speed_meters_per_second for point in deduped], max_points
+    )
+    return [deduped[i] for i in indices]
 
 
 def _as_gmt_datetime(value: Any) -> datetime | None:
@@ -704,9 +711,7 @@ def _extract_hrv(payload: Any) -> tuple[int | None, str | None]:
     source = hrv_summary if isinstance(hrv_summary, dict) else payload
     overnight = _as_int(source.get("lastNightAvg"))
     status = source.get("status")
-    status_text = (
-        status.strip().upper() if isinstance(status, str) and status.strip() else None
-    )
+    status_text = status.strip().upper() if isinstance(status, str) and status.strip() else None
     return overnight, status_text
 
 
@@ -738,7 +743,7 @@ def _extract_body_battery(payload: Any) -> int | None:
 
 def _extract_resting_heart_rate(rhr_payload: Any, stats_payload: Any) -> int | None:
     if isinstance(rhr_payload, dict):
-        metrics_map = ((rhr_payload.get("allMetrics") or {}).get("metricsMap") or {})
+        metrics_map = (rhr_payload.get("allMetrics") or {}).get("metricsMap") or {}
         if isinstance(metrics_map, dict):
             entries = metrics_map.get("WELLNESS_RESTING_HEART_RATE")
             if isinstance(entries, list) and entries:

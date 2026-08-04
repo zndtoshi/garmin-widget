@@ -74,9 +74,7 @@ class ActivitySpeedPoint(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     elapsed_seconds: int = Field(ge=0, alias="elapsedSeconds")
-    speed_meters_per_second: float = Field(
-        ge=0.0, le=150.0, alias="speedMetersPerSecond"
-    )
+    speed_meters_per_second: float = Field(ge=0.0, le=150.0, alias="speedMetersPerSecond")
 
 
 class LastActivity(BaseModel):
@@ -86,31 +84,23 @@ class LastActivity(BaseModel):
     type_key: str | None = Field(default=None, alias="typeKey")
     started_at: UtcDateTime | None = Field(default=None, alias="startedAt")
     duration_seconds: int | None = Field(default=None, alias="durationSeconds")
-    moving_duration_seconds: int | None = Field(
-        default=None, alias="movingDurationSeconds"
-    )
+    moving_duration_seconds: int | None = Field(default=None, alias="movingDurationSeconds")
     distance_meters: float | None = Field(default=None, alias="distanceMeters")
     calories: int | None = None
     average_heart_rate: int | None = Field(default=None, alias="averageHeartRate")
     max_heart_rate: int | None = Field(default=None, alias="maxHeartRate")
-    elevation_gain_meters: float | None = Field(
-        default=None, alias="elevationGainMeters"
-    )
+    elevation_gain_meters: float | None = Field(default=None, alias="elevationGainMeters")
     average_speed_meters_per_second: float | None = Field(
         default=None, alias="averageSpeedMetersPerSecond"
     )
-    aerobic_training_effect: float | None = Field(
-        default=None, alias="aerobicTrainingEffect"
-    )
-    anaerobic_training_effect: float | None = Field(
-        default=None, alias="anaerobicTrainingEffect"
-    )
+    aerobic_training_effect: float | None = Field(default=None, alias="aerobicTrainingEffect")
+    anaerobic_training_effect: float | None = Field(default=None, alias="anaerobicTrainingEffect")
     training_load: float | None = Field(default=None, alias="trainingLoad")
     heart_rate_timeline: list[ActivityHeartRatePoint] | None = Field(
-        default=None, alias="heartRateTimeline", max_length=48
+        default=None, alias="heartRateTimeline", max_length=240
     )
     speed_timeline: list[ActivitySpeedPoint] | None = Field(
-        default=None, alias="speedTimeline", max_length=48
+        default=None, alias="speedTimeline", max_length=240
     )
 
     @field_validator("started_at", mode="after")
@@ -132,37 +122,37 @@ class WidgetResponse(BaseModel):
         ser_json_timedelta="iso8601",
     )
 
-    schema_version: Literal[1] = Field(
-        default=WIDGET_SCHEMA_VERSION, alias="schemaVersion"
-    )
+    schema_version: Literal[1] = Field(default=WIDGET_SCHEMA_VERSION, alias="schemaVersion")
     date: Date | None = None
     sleep_score: int | None = Field(default=None, alias="sleepScore")
-    sleep_duration_seconds: int | None = Field(
-        default=None, alias="sleepDurationSeconds"
-    )
+    sleep_duration_seconds: int | None = Field(default=None, alias="sleepDurationSeconds")
     sleep_stages: SleepStages | None = Field(default=None, alias="sleepStages")
     overnight_hrv: int | None = Field(default=None, alias="overnightHrv")
     hrv_status: str | None = Field(default=None, alias="hrvStatus")
     hrv_trend: list[HrvTrendPoint] | None = Field(
-        default=None, alias="hrvTrend", max_length=28,
+        default=None,
+        alias="hrvTrend",
+        max_length=28,
     )
     body_battery: int | None = Field(default=None, alias="bodyBattery")
     body_battery_timeline: list[TimelinePoint] | None = Field(
-        default=None, alias="bodyBatteryTimeline", max_length=48,
+        default=None,
+        alias="bodyBatteryTimeline",
+        max_length=192,
     )
     resting_heart_rate: int | None = Field(default=None, alias="restingHeartRate")
     stress: int | None = None
     stress_timeline: list[TimelinePoint] | None = Field(
-        default=None, alias="stressTimeline", max_length=48,
+        default=None,
+        alias="stressTimeline",
+        max_length=192,
     )
     training_readiness: int | None = Field(default=None, alias="trainingReadiness")
     last_activity: LastActivity | None = Field(default=None, alias="lastActivity")
     garmin_sync_at: UtcDateTime | None = Field(default=None, alias="garminSyncAt")
     refreshed_at: UtcDateTime | None = Field(default=None, alias="refreshedAt")
     stale: bool = False
-    refresh_status: RefreshStatus = Field(
-        default=RefreshStatus.SUCCESS, alias="refreshStatus"
-    )
+    refresh_status: RefreshStatus = Field(default=RefreshStatus.SUCCESS, alias="refreshStatus")
     source: Literal["garmin-connect-unofficial"] = WIDGET_SOURCE
 
     @field_validator("garmin_sync_at", "refreshed_at", mode="after")

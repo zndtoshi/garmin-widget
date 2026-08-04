@@ -88,18 +88,25 @@ internal fun pickRecentHrvPoints(
     .sortedBy { it.date ?: LocalDate.MIN }
     .takeLast(maxPoints)
 
+internal const val DAILY_TIMELINE_MAX_POINTS = 192
+internal const val ACTIVITY_TIMELINE_MAX_POINTS = 240
+
+internal fun normalizeDailyTimeline(points: List<TimelinePoint>): List<TimelinePoint> = points
+    .filter { it.value in 0..100 }
+    .sortedWith(compareBy<TimelinePoint> { it.timestamp }.thenByDescending { it.value })
+    .distinctBy { it.timestamp }
+    .takeLast(DAILY_TIMELINE_MAX_POINTS)
+
 internal fun filterTimelineForResponseDate(
     points: List<TimelinePoint>,
     responseDate: String?,
     zoneId: ZoneId,
 ): List<TimelinePoint> {
     val targetDate = runCatching { LocalDate.parse(responseDate) }.getOrNull()
-        ?: return points.filter { it.value in 0..100 }.sortedBy { it.timestamp }.takeLast(48)
-    return points
-        .filter { it.value in 0..100 }
-        .filter { it.timestamp.atZone(zoneId).toLocalDate() == targetDate }
-        .sortedBy { it.timestamp }
-        .takeLast(48)
+        ?: return normalizeDailyTimeline(points)
+    return normalizeDailyTimeline(
+        points.filter { it.timestamp.atZone(zoneId).toLocalDate() == targetDate },
+    )
 }
 
 internal fun appendCurrentBodyBatteryPoint(
@@ -114,9 +121,9 @@ internal fun appendCurrentBodyBatteryPoint(
     val targetDate = runCatching { LocalDate.parse(responseDate) }.getOrNull()
     if (targetDate != null && timestamp.atZone(zoneId).toLocalDate() != targetDate) return points
 
-    val sorted = points.filter { it.value in 0..100 }.sortedBy { it.timestamp }
+    val sorted = normalizeDailyTimeline(points)
     if (sorted.lastOrNull()?.timestamp?.let { !timestamp.isAfter(it) } == true) return sorted
-    return (sorted + TimelinePoint(timestamp, value)).takeLast(48)
+    return (sorted + TimelinePoint(timestamp, value)).takeLast(DAILY_TIMELINE_MAX_POINTS)
 }
 
 internal fun timelineDayRange(responseDate: String?, zoneId: ZoneId): Pair<Instant, Instant>? {
@@ -457,13 +464,24 @@ internal fun chartContentDescription(
 internal fun activityChartContentDescription(
     hrTimeline: List<com.zndtoshi.garminwidget.data.ActivityHeartRatePoint>,
     speedTimeline: List<com.zndtoshi.garminwidget.data.ActivitySpeedPoint>,
+    averageSpeedMetersPerSecond: Double? = null,
 ): String {
     val parts = mutableListOf<String>()
     if (hrTimeline.size >= 2) parts += "heart rate"
     if (speedTimeline.size >= 2) {
         val maxMps = speedTimeline.maxOfOrNull { it.speedMetersPerSecond } ?: 0.0
         val maxKmh = maxMps * 3.6
-        parts += "speed up to ${String.format(java.util.Locale.US, "%.0f", maxKmh)} km/h"
+        val avg = averageSpeedMetersPerSecond?.takeIf { it.isFinite() && it > 0.0 }?.times(3.6)
+        parts += if (avg != null) {
+            String.format(
+                java.util.Locale.US,
+                "speed avg %.0f max %.0f km/h",
+                avg,
+                maxKmh,
+            )
+        } else {
+            String.format(java.util.Locale.US, "speed up to %.0f km/h", maxKmh)
+        }
     }
     return if (parts.isEmpty()) {
         "Activity chart"

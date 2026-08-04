@@ -130,13 +130,17 @@ data class WidgetResponse(
                     val value = it.optIntOrNull("value") ?: return@mapNotNull null
                     if (value !in 0..100) return@mapNotNull null
                     TimelinePoint(timestamp = instant, value = value)
-                }.sortedBy { it.timestamp }.takeLast(48),
+                }.sortedWith(
+                    compareBy<TimelinePoint> { it.timestamp }.thenByDescending { it.value },
+                ).distinctBy { it.timestamp }.takeLast(DAILY_TIMELINE_MAX),
                 stressTimeline = json.optArrayObjects("stressTimeline").mapNotNull {
                     val instant = it.optInstantOrNull("timestamp") ?: return@mapNotNull null
                     val value = it.optIntOrNull("value") ?: return@mapNotNull null
                     if (value !in 0..100) return@mapNotNull null
                     TimelinePoint(timestamp = instant, value = value)
-                }.sortedBy { it.timestamp }.takeLast(48),
+                }.sortedWith(
+                    compareBy<TimelinePoint> { it.timestamp }.thenByDescending { it.value },
+                ).distinctBy { it.timestamp }.takeLast(DAILY_TIMELINE_MAX),
                 lastActivity = json.optJSONObject("lastActivity")?.let {
                     LastActivity(
                         name = it.optStringOrNull("name"),
@@ -158,7 +162,12 @@ data class WidgetResponse(
                             val hr = point.optIntOrNull("heartRate") ?: return@mapNotNull null
                             if (hr !in ACTIVITY_HR_MIN..ACTIVITY_HR_MAX) return@mapNotNull null
                             ActivityHeartRatePoint(elapsedSeconds = elapsed, heartRate = hr)
-                        }.sortedBy { point -> point.elapsedSeconds }.take(ACTIVITY_HR_TIMELINE_MAX),
+                        }.sortedWith(
+                            compareBy<ActivityHeartRatePoint> { point -> point.elapsedSeconds }
+                                .thenByDescending { point -> point.heartRate },
+                        )
+                            .distinctBy { point -> point.elapsedSeconds }
+                            .take(ACTIVITY_HR_TIMELINE_MAX),
                         speedTimeline = it.optArrayObjects("speedTimeline").mapNotNull { point ->
                             val elapsed = point.optNonNegativeIntOrNull("elapsedSeconds") ?: return@mapNotNull null
                             val speed = point.optDoubleOrNull("speedMetersPerSecond") ?: return@mapNotNull null
@@ -197,8 +206,9 @@ data class WidgetResponse(
 
         private const val ACTIVITY_HR_MIN = 20
         private const val ACTIVITY_HR_MAX = 250
-        private const val ACTIVITY_HR_TIMELINE_MAX = 48
-        private const val ACTIVITY_SPEED_TIMELINE_MAX = 48
+        private const val ACTIVITY_HR_TIMELINE_MAX = 240
+        private const val ACTIVITY_SPEED_TIMELINE_MAX = 240
+        private const val DAILY_TIMELINE_MAX = 192
         private const val ACTIVITY_SPEED_MAX_MPS = 150.0
         private fun JSONObject.optIntOrNull(key: String): Int? =
             if (has(key) && !isNull(key)) runCatching { getInt(key) }.getOrNull() else null

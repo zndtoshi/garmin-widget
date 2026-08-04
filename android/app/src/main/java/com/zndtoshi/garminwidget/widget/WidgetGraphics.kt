@@ -112,7 +112,7 @@ internal fun countStressBarColors(values: Collection<Int>): Pair<Int, Int> {
 
 /**
  * Half-width for a stress bar so clustered samples stay legible instead of merging
- * into one solid block.
+ * into one solid block. Adapts downward for dense (≥192) timelines.
  */
 internal fun stressBarHalfWidthPx(points: List<ChartPoint>, index: Int): Float {
     if (points.isEmpty()) return 1f
@@ -121,7 +121,10 @@ internal fun stressBarHalfWidthPx(points: List<ChartPoint>, index: Int): Float {
     val leftGap = if (index > 0) x - points[index - 1].x else Float.POSITIVE_INFINITY
     val rightGap = if (index < points.lastIndex) points[index + 1].x - x else Float.POSITIVE_INFINITY
     val halfGap = min(leftGap, rightGap) * 0.4f
-    return halfGap.coerceIn(0.55f, 1.35f)
+    val density = (points.size / 48f).coerceAtLeast(1f)
+    val maxHalf = (1.35f / density.coerceAtMost(4f)).coerceIn(0.45f, 1.35f)
+    val minHalf = (0.35f).coerceAtMost(maxHalf)
+    return halfGap.coerceIn(minHalf, maxHalf)
 }
 
 internal object WidgetPalette {
@@ -1250,11 +1253,17 @@ internal data class ActivityHrChartGeometry(
     val minElapsedSeconds: Int,
     val maxElapsedSeconds: Int,
     val speedPoints: List<ChartPoint> = emptyList(),
+    val speedBreakBeforeIndex: Set<Int> = emptySet(),
     val maxSpeedMps: Double = 0.0,
+    val speedCeilingKmh: Float = 0f,
+    val speedTickKmh: List<Float> = emptyList(),
+    val averageSpeedMps: Double? = null,
 ) {
     val hasHrSeries: Boolean get() = points.size >= 2
     val hasSpeedSeries: Boolean get() = speedPoints.size >= 2
     val hasRenderableSeries: Boolean get() = hasHrSeries || hasSpeedSeries
+    val speedCeilingY: Float
+        get() = bottom - ACTIVITY_SPEED_HEIGHT_FRACTION * (bottom - top)
 }
 
 internal fun buildActivityHrChartGeometry(
@@ -1262,18 +1271,19 @@ internal fun buildActivityHrChartGeometry(
     heightPx: Int,
     timeline: List<ActivityHeartRatePoint>,
     speedTimeline: List<ActivitySpeedPoint> = emptyList(),
+    averageSpeedMetersPerSecond: Double? = null,
 ): ActivityHrChartGeometry {
     val w = max(1, widthPx)
     val h = max(1, heightPx)
     val left = 28f
     val top = 4f
-    val right = (w - 4).toFloat().coerceAtLeast(left + 1f)
-    val bottom = (h - 15).toFloat().coerceAtLeast(top + 1f)
     val orderedHr = timeline
         .filter { it.elapsedSeconds >= 0 && it.heartRate in 20..250 }
-        .sortedBy { it.elapsedSeconds }
+        .sortedWith(
+            compareBy<ActivityHeartRatePoint> { it.elapsedSeconds }.thenByDescending { it.heartRate },
+        )
         .distinctBy { it.elapsedSeconds }
-        .take(48)
+        .take(ACTIVITY_TIMELINE_MAX_POINTS)
     val orderedSpeed = speedTimeline
         .filter {
             it.elapsedSeconds >= 0 &&
@@ -1285,8 +1295,12 @@ internal fun buildActivityHrChartGeometry(
                 .thenByDescending { it.speedMetersPerSecond },
         )
         .distinctBy { it.elapsedSeconds }
-        .take(48)
-    if (orderedHr.isEmpty() && orderedSpeed.size < 2) {
+        .take(ACTIVITY_TIMELINE_MAX_POINTS)
+    val hasSpeed = orderedSpeed.size >= 2 && (orderedSpeed.maxOfOrNull { it.speedMetersPerSecond } ?: 0.0) > 0.0
+    val rightPad = if (hasSpeed) 46f else 4f
+    val right = (w - rightPad).coerceAtLeast(left + 1f)
+    val bottom = (h - 15).toFloat().coerceAtLeast(top + 1f)
+    if (orderedHr.isEmpty() && !hasSpeed) {
         return ActivityHrChartGeometry(
             w, h, left, top, right, bottom,
             emptyList(), null, 20, 250, 0, 0,
@@ -1323,24 +1337,38 @@ internal fun buildActivityHrChartGeometry(
     val maxPoint = points.maxByOrNull { it.value }
 
     val maxSpeed = orderedSpeed.maxOfOrNull { it.speedMetersPerSecond } ?: 0.0
-    val plotHeight = bottom - top
-    val speedCeilingY = bottom - 0.50f * plotHeight
+    val ceilingKmh = if (hasSpeed) niceSpeedCeilingKmh(maxSpeed) else 0f
+    val ticks = if (hasSpeed) niceSpeedTickKmh(ceilingKmh) else emptyList()
+    val speedCeilingY = bottom - ACTIVITY_SPEED_HEIGHT_FRACTION * (bottom - top)
     val speedPoints =
-        if (orderedSpeed.size >= 2 && maxSpeed > 0.0) {
+        if (hasSpeed && ceilingKmh > 0f) {
             orderedSpeed.map { point ->
-                val t = (point.speedMetersPerSecond / maxSpeed).toFloat().coerceIn(0f, 1f)
+                val kmh = (point.speedMetersPerSecond * 3.6).toFloat()
+                val t = (kmh / ceilingKmh).coerceIn(0f, 1f)
                 val y = (bottom - t * (bottom - speedCeilingY)).coerceIn(speedCeilingY, bottom)
                 ChartPoint(xOf(point.elapsedSeconds), y, (point.speedMetersPerSecond * 100).roundToInt())
             }
         } else {
             emptyList()
         }
+    val breaks = if (hasSpeed) {
+        speedGapBreakBeforeIndices(orderedSpeed.map { it.elapsedSeconds })
+    } else {
+        emptySet()
+    }
+    val avg = averageSpeedMetersPerSecond?.takeIf {
+        it.isFinite() && it > 0.0 && it <= 150.0 && hasSpeed
+    }
 
     return ActivityHrChartGeometry(
         w, h, left, top, right, bottom,
         points, maxPoint, minHr, maxHr, minElapsed, maxElapsed,
         speedPoints = speedPoints,
+        speedBreakBeforeIndex = breaks,
         maxSpeedMps = maxSpeed,
+        speedCeilingKmh = ceilingKmh,
+        speedTickKmh = ticks,
+        averageSpeedMps = avg,
     )
 }
 
@@ -1354,9 +1382,66 @@ internal val ACTIVITY_SPEED_FILL = 0xFF42A5F5.toInt()
 internal const val ACTIVITY_HR_PEAK_RATIO = 0.95f
 internal const val ACTIVITY_SPEED_HEIGHT_FRACTION = 0.50f
 
+/** Garmin-like nice km/h ceiling that contains [maxSpeedMps]. */
+internal fun niceSpeedCeilingKmh(maxSpeedMps: Double): Float {
+    if (!maxSpeedMps.isFinite() || maxSpeedMps <= 0.0) return 0f
+    val maxKmh = maxSpeedMps * 3.6
+    val steps = listOf(5.0, 10.0, 20.0, 25.0, 50.0, 75.0, 100.0, 150.0, 200.0, 250.0, 300.0, 350.0)
+    val match = steps.firstOrNull { it >= maxKmh }
+    if (match != null) return match.toFloat()
+    return (kotlin.math.ceil(maxKmh / 50.0) * 50.0).toFloat()
+}
+
+internal fun niceSpeedTickKmh(ceilingKmh: Float): List<Float> {
+    if (ceilingKmh <= 0f) return emptyList()
+    val mids: List<Float> = when {
+        ceilingKmh <= 25f -> listOf(ceilingKmh / 2f)
+        ceilingKmh <= 50f -> listOf(25f).filter { it < ceilingKmh }.ifEmpty { listOf(ceilingKmh / 2f) }
+        ceilingKmh <= 100f -> listOf(25f, 50f, 75f).filter { it < ceilingKmh }
+        else -> listOf(ceilingKmh * 0.25f, ceilingKmh * 0.5f, ceilingKmh * 0.75f)
+    }
+    return (listOf(0f) + mids + ceilingKmh).distinct().sorted()
+}
+
+/**
+ * Indices into the ordered speed series where the segment before [index] must break
+ * (do not connect [index-1] → [index]). Derived from median positive sample gap.
+ */
+internal fun speedGapBreakBeforeIndices(elapsedSeconds: List<Int>): Set<Int> {
+    if (elapsedSeconds.size < 3) return emptySet()
+    val gaps = elapsedSeconds.zipWithNext { a, b -> b - a }.filter { it > 0 }
+    if (gaps.isEmpty()) return emptySet()
+    val sortedGaps = gaps.sorted()
+    val median = sortedGaps[sortedGaps.size / 2]
+    val threshold = max(median * 3, max(median + 30, 60))
+    val breaks = mutableSetOf<Int>()
+    for (i in 1 until elapsedSeconds.size) {
+        val gap = elapsedSeconds[i] - elapsedSeconds[i - 1]
+        if (gap > threshold) breaks.add(i)
+    }
+    return breaks
+}
+
 internal fun activitySpeedMaxKmhLabel(maxSpeedMps: Double): String? {
     if (!maxSpeedMps.isFinite() || maxSpeedMps <= 0.0) return null
     return String.format(Locale.US, "%.1f", maxSpeedMps * 3.6)
+}
+
+internal fun activitySpeedAvgKmhLabel(averageSpeedMps: Double?): String? {
+    val mps = averageSpeedMps ?: return null
+    if (!mps.isFinite() || mps <= 0.0) return null
+    return String.format(Locale.US, "%.1f", mps * 3.6)
+}
+
+internal fun yForSpeedKmh(
+    kmh: Float,
+    ceilingKmh: Float,
+    speedCeilingY: Float,
+    plotBottom: Float,
+): Float {
+    if (ceilingKmh <= 0f) return plotBottom
+    val t = (kmh / ceilingKmh).coerceIn(0f, 1f)
+    return (plotBottom - t * (plotBottom - speedCeilingY)).coerceIn(speedCeilingY, plotBottom)
 }
 
 internal enum class ActivityChartLayer {
@@ -1535,8 +1620,15 @@ internal fun drawActivityHrChartBitmap(
     timeline: List<ActivityHeartRatePoint>,
     maxHeartRate: Int? = null,
     speedTimeline: List<ActivitySpeedPoint> = emptyList(),
+    averageSpeedMetersPerSecond: Double? = null,
 ): Bitmap? {
-    val geo = buildActivityHrChartGeometry(widthPx, heightPx, timeline, speedTimeline)
+    val geo = buildActivityHrChartGeometry(
+        widthPx,
+        heightPx,
+        timeline,
+        speedTimeline,
+        averageSpeedMetersPerSecond,
+    )
     if (!geo.hasRenderableSeries) return null
     val ceiling = resolveActivityHrCeiling(maxHeartRate, timeline)
     val bmp = Bitmap.createBitmap(geo.widthPx, geo.heightPx, Bitmap.Config.ARGB_8888)
@@ -1564,6 +1656,17 @@ internal fun drawActivityHrChartBitmap(
             canvas.drawLine(geo.left, y, geo.right, y, gridPaint)
         }
     }
+    if (geo.hasSpeedSeries) {
+        val speedGridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#3342A5F5")
+            style = Paint.Style.STROKE
+            strokeWidth = 1f
+        }
+        geo.speedTickKmh.forEach { tick ->
+            val y = yForSpeedKmh(tick, geo.speedCeilingKmh, geo.speedCeilingY, geo.bottom)
+            canvas.drawLine(geo.left, y, geo.right, y, speedGridPaint)
+        }
+    }
     listOf(0f, 0.5f, 1f).forEach { fraction ->
         val x = geo.left + (geo.right - geo.left) * fraction
         canvas.drawLine(x, geo.top, x, geo.bottom, gridPaint)
@@ -1578,10 +1681,16 @@ internal fun drawActivityHrChartBitmap(
     canvas.clipRect(geo.left, geo.top, geo.right, geo.bottom)
 
     if (geo.hasSpeedSeries) {
-        val speedFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
+        val speedFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        val speedStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ACTIVITY_SPEED_LINE
+            style = Paint.Style.STROKE
+            strokeWidth = activitySpeedStrokeWidthPx(hrStroke)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
         }
         for (i in 0 until geo.speedPoints.lastIndex) {
+            if (i + 1 in geo.speedBreakBeforeIndex) continue
             val a = geo.speedPoints[i]
             val b = geo.speedPoints[i + 1]
             val path = Path().apply {
@@ -1601,18 +1710,19 @@ internal fun drawActivityHrChartBitmap(
                 Shader.TileMode.CLAMP,
             )
             canvas.drawPath(path, speedFill)
-        }
-        val speedStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = ACTIVITY_SPEED_LINE
-            style = Paint.Style.STROKE
-            strokeWidth = activitySpeedStrokeWidthPx(hrStroke)
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        for (i in 0 until geo.speedPoints.lastIndex) {
-            val a = geo.speedPoints[i]
-            val b = geo.speedPoints[i + 1]
             canvas.drawLine(a.x, a.y, b.x, b.y, speedStroke)
+        }
+        geo.averageSpeedMps?.let { avg ->
+            val avgKmh = (avg * 3.6).toFloat()
+            if (avgKmh in 0f..geo.speedCeilingKmh) {
+                val y = yForSpeedKmh(avgKmh, geo.speedCeilingKmh, geo.speedCeilingY, geo.bottom)
+                val avgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#B3FFFFFF")
+                    style = Paint.Style.STROKE
+                    strokeWidth = 1.2f
+                }
+                canvas.drawLine(geo.left, y, geo.right, y, avgPaint)
+            }
         }
     }
 
@@ -1634,29 +1744,13 @@ internal fun drawActivityHrChartBitmap(
                 val y0 = a.y + (b.y - a.y) * t0
                 val y1 = a.y + (b.y - a.y) * t1
                 drawActivityHrDiffusionStrip(
-                    canvas,
-                    x0,
-                    y0,
-                    x1,
-                    y1,
-                    slate,
-                    slate,
-                    normalDepth,
-                    geo.bottom,
+                    canvas, x0, y0, x1, y1, slate, slate, normalDepth, geo.bottom,
                     activityHrNormalDiffusionStartAlpha(),
                 )
                 val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
                 if (activityHrPeakDiffusionSelected(midpointHr, ceiling)) {
                     drawActivityHrDiffusionStrip(
-                        canvas,
-                        x0,
-                        y0,
-                        x1,
-                        y1,
-                        peakFill,
-                        peakFill,
-                        peakDepth,
-                        geo.bottom,
+                        canvas, x0, y0, x1, y1, peakFill, peakFill, peakDepth, geo.bottom,
                         activityHrPeakDiffusionStartAlpha(),
                     )
                 }
@@ -1680,20 +1774,43 @@ internal fun drawActivityHrChartBitmap(
     canvas.restore()
 
     if (geo.hasSpeedSeries) {
+        val speedLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ACTIVITY_SPEED_LINE
+            textSize = 8f
+            textAlign = Paint.Align.LEFT
+            setShadowLayer(1f, 0f, 0f, 0xCC000000.toInt())
+        }
+        for (tick in geo.speedTickKmh) {
+            val y = yForSpeedKmh(tick, geo.speedCeilingKmh, geo.speedCeilingY, geo.bottom)
+            canvas.drawLine(geo.right, y, geo.right + 3f, y, gridPaint)
+            val text = if (tick == 0f) "0" else tick.toInt().toString()
+            canvas.drawText(text, geo.right + 4f, y + 3f, speedLabelPaint)
+        }
+        speedLabelPaint.textSize = 7f
+        canvas.drawText("km/h", geo.right + 4f, geo.speedCeilingY - 2f, speedLabelPaint)
         activitySpeedMaxKmhLabel(geo.maxSpeedMps)?.let { maxKmh ->
-            val speedCeilingY = geo.bottom - ACTIVITY_SPEED_HEIGHT_FRACTION * (geo.bottom - geo.top)
-            val speedLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = ACTIVITY_SPEED_LINE
-                textSize = 9f
-                textAlign = Paint.Align.RIGHT
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                setShadowLayer(1f, 0f, 0f, 0xCC000000.toInt())
-            }
-            canvas.drawText(maxKmh, geo.right - 3f, speedCeilingY + 9f, speedLabelPaint)
+            speedLabelPaint.textSize = 8f
+            speedLabelPaint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            speedLabelPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("Max $maxKmh", geo.right - 3f, geo.speedCeilingY + 10f, speedLabelPaint)
+        }
+        activitySpeedAvgKmhLabel(geo.averageSpeedMps)?.let { avgKmh ->
             speedLabelPaint.typeface = Typeface.DEFAULT
             speedLabelPaint.textSize = 7.5f
-            canvas.drawText("km/h", geo.right - 3f, speedCeilingY + 17f, speedLabelPaint)
-            canvas.drawText("0", geo.right - 3f, geo.bottom - 3f, speedLabelPaint)
+            val avgY = yForSpeedKmh(
+                (geo.averageSpeedMps!! * 3.6).toFloat(),
+                geo.speedCeilingKmh,
+                geo.speedCeilingY,
+                geo.bottom,
+            )
+            val maxLabelBaseline = geo.speedCeilingY + 10f
+            val preferredBaseline = avgY - 2f
+            val avgLabelBaseline = if (abs(preferredBaseline - maxLabelBaseline) < 9f) {
+                (maxLabelBaseline + 10f).coerceAtMost(geo.bottom - 2f)
+            } else {
+                preferredBaseline.coerceIn(geo.speedCeilingY + 8f, geo.bottom - 2f)
+            }
+            canvas.drawText("Avg $avgKmh", geo.right - 3f, avgLabelBaseline, speedLabelPaint)
         }
     }
 

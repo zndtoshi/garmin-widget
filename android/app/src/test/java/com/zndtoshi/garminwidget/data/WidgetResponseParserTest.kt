@@ -57,11 +57,15 @@ class WidgetResponseParserTest {
             longTrend.put(JSONObject().put("date", "2026-07-${10 + it}").put("overnightAverage", it))
         }
         val longTimeline = JSONArray()
-        repeat(70) {
+        repeat(220) {
             longTimeline.put(
                 JSONObject()
-                    .put("timestamp", "2026-07-29T00:${(it % 60).toString().padStart(2, '0')}:00Z")
-                    .put("value", if (it % 3 == 0) 150 else 50),
+                    .put(
+                        "timestamp",
+                        "2026-07-29T${(it / 60).toString().padStart(2, '0')}:" +
+                            "${(it % 60).toString().padStart(2, '0')}:00Z",
+                    )
+                    .put("value", if (it % 3 == 0) 90 else 50),
             )
         }
         json.put("hrvTrend", longTrend)
@@ -81,8 +85,8 @@ class WidgetResponseParserTest {
         )
         val response = WidgetResponseParser.parse(json.toString())
         assertEquals(28, response.hrvTrend.size)
-        assertTrue(response.bodyBatteryTimeline.size <= 48)
-        assertTrue(response.stressTimeline.size <= 48)
+        assertTrue(response.bodyBatteryTimeline.size <= 192)
+        assertTrue(response.stressTimeline.size <= 192)
         assertTrue(response.bodyBatteryTimeline.all { it.value in 0..100 })
         assertTrue(response.stressTimeline.all { it.value in 0..100 })
         assertEquals(100, response.sleepStages?.lightSeconds)
@@ -98,21 +102,40 @@ class WidgetResponseParserTest {
         val activity = json.getJSONObject("lastActivity")
         val timeline = JSONArray()
             .put(JSONObject().put("elapsedSeconds", 30).put("heartRate", 138))
+            .put(JSONObject().put("elapsedSeconds", 30).put("heartRate", 188))
             .put(JSONObject().put("elapsedSeconds", 0).put("heartRate", 112))
             .put(JSONObject().put("elapsedSeconds", 10).put("heartRate", 10))
             .put(JSONObject().put("elapsedSeconds", -1).put("heartRate", 120))
             .put(JSONObject().put("elapsedSeconds", 60).put("heartRate", 260))
-        repeat(60) { i ->
+        repeat(250) { i ->
             timeline.put(JSONObject().put("elapsedSeconds", 100 + i).put("heartRate", 140))
         }
         activity.put("heartRateTimeline", timeline)
         val response = WidgetResponseParser.parse(json.toString())
         val points = response.lastActivity?.heartRateTimeline.orEmpty()
-        assertTrue(points.size <= 48)
+        assertTrue(points.size <= 240)
         assertEquals(0, points.first().elapsedSeconds)
         assertEquals(112, points.first().heartRate)
         assertTrue(points.all { it.heartRate in 20..250 })
         assertTrue(points.zipWithNext().all { (a, b) -> a.elapsedSeconds <= b.elapsedSeconds })
+        assertEquals(points.size, points.map { it.elapsedSeconds }.distinct().size)
+        assertEquals(188, points.first { it.elapsedSeconds == 30 }.heartRate)
+    }
+
+    @Test
+    fun deduplicates_daily_timeline_timestamps_deterministically() {
+        val json = JSONObject(COMPLETE_PAYLOAD)
+        val duplicateTimeline = JSONArray()
+            .put(JSONObject().put("timestamp", "2026-07-29T01:00:00Z").put("value", 20))
+            .put(JSONObject().put("timestamp", "2026-07-29T01:00:00Z").put("value", 55))
+            .put(JSONObject().put("timestamp", "2026-07-29T02:00:00Z").put("value", 30))
+        json.put("bodyBatteryTimeline", duplicateTimeline)
+        json.put("stressTimeline", duplicateTimeline)
+
+        val response = WidgetResponseParser.parse(json.toString())
+
+        assertEquals(listOf(55, 30), response.bodyBatteryTimeline.map { it.value })
+        assertEquals(listOf(55, 30), response.stressTimeline.map { it.value })
     }
 
     @Test

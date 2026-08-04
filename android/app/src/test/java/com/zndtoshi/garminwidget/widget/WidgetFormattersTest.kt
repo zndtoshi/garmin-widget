@@ -2,6 +2,8 @@ package com.zndtoshi.garminwidget.widget
 
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
+import com.zndtoshi.garminwidget.data.ActivitySpeedPoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
@@ -320,6 +322,20 @@ class WidgetFormattersTest {
     }
 
     @Test
+    fun `normalizes dense daily timelines with deterministic timestamp dedupe`() {
+        val duplicate = Instant.parse("2026-07-28T10:00:00Z")
+        val normalized = normalizeDailyTimeline(
+            listOf(
+                TimelinePoint(duplicate, 20),
+                TimelinePoint(duplicate, 70),
+                TimelinePoint(Instant.parse("2026-07-28T11:00:00Z"), 30),
+            ),
+        )
+        assertEquals(2, normalized.size)
+        assertEquals(listOf(70, 30), normalized.map { it.value })
+    }
+
+    @Test
     fun `appends fresher summary value to body battery timeline`() {
         val zone = ZoneId.of("Europe/Bucharest")
         val timeline = listOf(
@@ -415,6 +431,19 @@ class WidgetFormattersTest {
         assertEquals("Refresh Garmin widget", refreshContentDescription(LocalStatus.READY))
         assertEquals("Refreshing Garmin widget", refreshContentDescription(LocalStatus.REFRESHING))
         val chart = chartContentDescription(10, 12, bodyBattery = 72, stress = 18)
+        assertTrue(
+            activityChartContentDescription(
+                listOf(
+                    ActivityHeartRatePoint(0, 120),
+                    ActivityHeartRatePoint(60, 140),
+                ),
+                listOf(
+                    ActivitySpeedPoint(0, 1.0),
+                    ActivitySpeedPoint(60, 10.0),
+                ),
+                averageSpeedMetersPerSecond = 5.0,
+            ).contains("speed avg 18 max 36 km/h"),
+        )
         assertTrue(chart.contains("Body Battery 72"))
         assertTrue(chart.contains("Stress 18"))
         assertTrue(sleepRingContentDescription(80, true).contains("80"))

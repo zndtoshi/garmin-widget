@@ -18,7 +18,7 @@ The Android widget never talks to Garmin directly. It only calls the private bac
 
 ## Current implementation state
 
-Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is merged, deployed, and live-verified. Phase 8B/8D Android widget work targets a single adaptive wide two-row Glance widget (Sleep/HRV/Body Battery over activity + HR chart); device polish and visual verification remain pending. The additive `lastActivity.heartRateTimeline` backend extension is deployed and live-verified with 48 real cached points.
+Backend Phases 1–6 are implemented and deployed for private use. The Render service, persistent disk, custom domain, DNS, TLS, Garmin refresh, and unauthenticated-route protection have been verified. Phase 7 Android is complete (buildable app + Glance widget). Phase 8A (expanded backend data contract) is merged, deployed, and live-verified. Phase 8B/8D Android widget work targets a single adaptive wide two-row Glance widget (Sleep/HRV/Body Battery over activity + HR chart); device polish and visual verification remain pending. The additive `lastActivity.heartRateTimeline` / `speedTimeline` backend extension is deployed and live-verified; timelines are capped at 240 real samples (daily BB/stress at 192) after extrema-aware downsampling.
 
 Implemented now:
 
@@ -36,8 +36,8 @@ Implemented now:
 - **Phase 8A expanded data contract** — additive nullable fields for premium widgets:
   - `sleepStages` (deep/light/REM/awake durations, negative values filtered)
   - `hrvTrend` (rolling 7-day, oldest-first, bounded to 7 entries max; initial backfill then same-day reuse)
-  - `bodyBatteryTimeline` and `stressTimeline` (intraday points, sorted/deduped, values 0–100, max 48 after downsampling)
-  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled). Optional private-safe `heartRateTimeline` / `speedTimeline` (max 48 each) may be present after a transient activity-details fetch; activity IDs/GPS/raw details are never exposed.
+  - `bodyBatteryTimeline` and `stressTimeline` (intraday points, sorted/deduped, values 0–100, max 192 after extrema-aware downsampling of real Garmin samples)
+  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled). Optional private-safe `heartRateTimeline` / `speedTimeline` (max 240 each) may be present after a transient activity-details fetch; activity IDs/GPS/raw details are never exposed.
   - All new fields are nullable and backward-compatible with `schemaVersion=1`
 - Atomic latest-widget snapshot persistence and refresh coordination
 - Render-oriented container entrypoint (`PORT`, one worker; proxy headers disabled)
@@ -183,11 +183,11 @@ Version-one public JSON uses camelCase and explicit nullability for metrics that
 | `restingHeartRate` | number \| null | Resting HR |
 | `sleepStages` | object \| null | `{deepSeconds, lightSeconds, remSeconds, awakeSeconds}` (all nullable ints) |
 | `hrvTrend` | array \| null | Rolling 7-day trend, oldest first. Each: `{date, overnightAverage, sevenDayAverage, status}` |
-| `bodyBatteryTimeline` | array \| null | Intraday points (max 48): `{timestamp, value}` |
+| `bodyBatteryTimeline` | array \| null | Intraday points (max 192): `{timestamp, value}` |
 | `stress` | number \| null | Stress value |
-| `stressTimeline` | array \| null | Intraday points (max 48): `{timestamp, value}` |
+| `stressTimeline` | array \| null | Intraday points (max 192): `{timestamp, value}` |
 | `trainingReadiness` | number \| null | Training readiness |
-| `lastActivity` | object \| null | Most recent activity summary. Optional additive `heartRateTimeline` / `speedTimeline` (max 48 each): `{elapsedSeconds, heartRate}` and `{elapsedSeconds, speedMetersPerSecond}` from one transient details fetch; never includes activity ID/GPS/raw details. |
+| `lastActivity` | object \| null | Most recent activity summary. Optional additive `heartRateTimeline` / `speedTimeline` (max 240 each): `{elapsedSeconds, heartRate}` and `{elapsedSeconds, speedMetersPerSecond}` from one transient details fetch; never includes activity ID/GPS/raw details. |
 | `garminSyncAt` | string \| null | ISO-8601 UTC timestamp |
 | `refreshedAt` | string \| null | ISO-8601 UTC timestamp |
 | `stale` | boolean | Indicates stale cached data |

@@ -592,15 +592,19 @@ class WidgetGraphicsTest {
             ActivitySpeedPoint(30, 10.0),
             ActivitySpeedPoint(90, 5.0),
         )
-        val geo = buildActivityHrChartGeometry(200, 80, hr, speed)
+        val geo = buildActivityHrChartGeometry(200, 80, hr, speed, averageSpeedMetersPerSecond = 6.0)
         assertTrue(geo.hasHrSeries)
         assertTrue(geo.hasSpeedSeries)
         assertEquals(0, geo.minElapsedSeconds)
         assertEquals(120, geo.maxElapsedSeconds)
-        val midY = geo.top + (geo.bottom - geo.top) * 0.5f
+        val midY = geo.speedCeilingY
         assertTrue(geo.speedPoints.all { it.y in midY..geo.bottom + 0.01f })
+        assertEquals(50f, geo.speedCeilingKmh, 0.01f)
+        assertEquals(6.0, geo.averageSpeedMps)
         val maxSpeedPoint = geo.speedPoints.maxBy { it.value }
-        assertEquals(midY, maxSpeedPoint.y, 0.5f)
+        val expectedMaxY = yForSpeedKmh(36f, geo.speedCeilingKmh, midY, geo.bottom)
+        assertEquals(expectedMaxY, maxSpeedPoint.y, 0.5f)
+        assertTrue(maxSpeedPoint.y > midY + 0.5f)
         assertEquals(
             listOf(
                 ActivityChartLayer.SPEED_FILL,
@@ -614,9 +618,22 @@ class WidgetGraphicsTest {
         assertEquals(0xFF42A5F5.toInt(), ACTIVITY_SPEED_LINE)
         assertEquals("18.0", activitySpeedMaxKmhLabel(5.0))
         assertEquals("234.1", activitySpeedMaxKmhLabel(65.0277778))
+        assertEquals("21.6", activitySpeedAvgKmhLabel(6.0))
         assertNull(activitySpeedMaxKmhLabel(0.0))
         assertNull(activitySpeedMaxKmhLabel(Double.NaN))
+        assertNull(activitySpeedAvgKmhLabel(null))
         assertTrue(activitySpeedStrokeWidthPx(2.5f) <= 2.5f)
+        assertEquals(50f, niceSpeedCeilingKmh(10.0), 0.01f)
+        assertEquals(20f, niceSpeedCeilingKmh(5.0), 0.01f)
+        assertEquals(setOf(2), speedGapBreakBeforeIndices(listOf(0, 10, 200, 210)))
+        assertTrue(
+            buildActivityHrChartGeometry(
+                100,
+                40,
+                emptyList(),
+                List(50) { ActivitySpeedPoint(it * 10, 2.0 + it * 0.01) },
+            ).speedPoints.size > 48,
+        )
         assertFalse(
             buildActivityHrChartGeometry(
                 100,
@@ -633,5 +650,13 @@ class WidgetGraphicsTest {
                 listOf(ActivitySpeedPoint(0, 1.0), ActivitySpeedPoint(30, 2.0)),
             ).hasSpeedSeries,
         )
+    }
+
+    @Test
+    fun `dense stress bars shrink half width further`() {
+        val dense = List(192) { i -> ChartPoint(i * 1.2f, 10f, 40) }
+        val half = stressBarHalfWidthPx(dense, 90)
+        assertTrue(half <= 0.85f)
+        assertTrue(half >= 0.35f)
     }
 }

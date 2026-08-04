@@ -27,6 +27,7 @@ from app.garmin.adapter import (
     _extract_last_activity,
     _extract_sleep_stages,
     _extract_stress_timeline,
+    _extrema_aware_indices,
     _sort_dedup_and_downsample,
     _sort_dedup_downsample_hr,
     _sort_dedup_downsample_speed,
@@ -82,9 +83,7 @@ def _complete_client(**overrides: object) -> FakeMetricsClient:
 
 
 def test_adapter_extracts_complete_metrics() -> None:
-    metrics = GarminMetricsAdapter(_complete_client()).fetch_daily_metrics(
-        date(2026, 7, 28)
-    )
+    metrics = GarminMetricsAdapter(_complete_client()).fetch_daily_metrics(date(2026, 7, 28))
 
     assert metrics.sleep_score == 84
     assert metrics.sleep_duration_seconds == 22620
@@ -284,9 +283,7 @@ def test_adapter_raises_when_all_endpoints_unavailable() -> None:
 
 
 def test_adapter_raises_on_unexpected_exception() -> None:
-    client = _complete_client(
-        errors={"get_sleep_data": RuntimeError("boom with raw body xyz")}
-    )
+    client = _complete_client(errors={"get_sleep_data": RuntimeError("boom with raw body xyz")})
     with pytest.raises(GarminUpstreamError, match="Unexpected Garmin upstream failure"):
         GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
 
@@ -300,20 +297,14 @@ def test_adapter_raises_on_authentication_failure() -> None:
 
 
 def test_adapter_raises_on_rate_limit() -> None:
-    client = _complete_client(
-        errors={"get_stats": GarminConnectTooManyRequestsError("slow down")}
-    )
+    client = _complete_client(errors={"get_stats": GarminConnectTooManyRequestsError("slow down")})
     with pytest.raises(GarminRateLimitError):
         GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
 
 
 def test_adapter_raises_on_network_failure() -> None:
     client = _complete_client(
-        errors={
-            "get_device_last_used": GarminConnectConnectionError(
-                "connection timed out"
-            )
-        }
+        errors={"get_device_last_used": GarminConnectConnectionError("connection timed out")}
     )
     with pytest.raises(GarminNetworkError):
         GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
@@ -417,16 +408,12 @@ def test_public_model_rejects_non_version_one_schema_and_source() -> None:
     with pytest.raises(ValidationError):
         WidgetResponse.model_validate({"schemaVersion": 2})
     with pytest.raises(ValidationError):
-        WidgetResponse.model_validate(
-            {"schemaVersion": 1, "source": "somewhere-else"}
-        )
+        WidgetResponse.model_validate({"schemaVersion": 1, "source": "somewhere-else"})
 
 
 def test_public_timestamps_normalize_and_serialize_with_z() -> None:
     utc_value = datetime(2026, 7, 28, 5, 35, tzinfo=UTC)
-    offset_value = datetime(
-        2026, 7, 28, 8, 35, tzinfo=timezone(timedelta(hours=3))
-    )
+    offset_value = datetime(2026, 7, 28, 8, 35, tzinfo=timezone(timedelta(hours=3)))
     naive_value = datetime(2026, 7, 28, 5, 36, 4)
 
     payload = WidgetResponse(
@@ -514,9 +501,7 @@ def test_extract_sleep_stages_all_missing() -> None:
 
 
 def test_adapter_extracts_sleep_stages_from_complete_fixture() -> None:
-    metrics = GarminMetricsAdapter(_complete_client()).fetch_daily_metrics(
-        date(2026, 7, 28)
-    )
+    metrics = GarminMetricsAdapter(_complete_client()).fetch_daily_metrics(date(2026, 7, 28))
     assert metrics.sleep_stages is not None
     assert metrics.sleep_stages.deep_seconds == 5400
     assert metrics.sleep_stages.light_seconds == 10800
@@ -540,7 +525,8 @@ def test_hrv_initial_backfill() -> None:
         }
     client = _complete_client(hrv_by_date=hrv_by_date)
     metrics = GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=None,
+        date(2026, 7, 28),
+        previous_hrv_trend=None,
     )
     hrv_calls = [c for c in client.calls if c[0] == "get_hrv_data"]
     assert metrics.hrv_trend is not None
@@ -563,7 +549,8 @@ def test_hrv_same_day_reuse_no_refetch() -> None:
     ]
     client = _complete_client()
     metrics = GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=existing_trend,
+        date(2026, 7, 28),
+        previous_hrv_trend=existing_trend,
     )
     hrv_calls = [c for c in client.calls if c[0] == "get_hrv_data"]
     assert len(client.calls) == 9
@@ -577,17 +564,22 @@ def test_hrv_same_day_reuse_no_refetch() -> None:
 def test_hrv_four_week_trimming() -> None:
     old_trend = [
         HrvTrendPointInternal(
-            date=date(2026, 7, 20), overnight_average=30,
-            seven_day_average=30, status="LOW",
+            date=date(2026, 7, 20),
+            overnight_average=30,
+            seven_day_average=30,
+            status="LOW",
         ),
         HrvTrendPointInternal(
-            date=date(2026, 7, 22), overnight_average=35,
-            seven_day_average=33, status="BALANCED",
+            date=date(2026, 7, 22),
+            overnight_average=35,
+            seven_day_average=33,
+            status="BALANCED",
         ),
     ]
     client = _complete_client()
     metrics = GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=old_trend,
+        date(2026, 7, 28),
+        previous_hrv_trend=old_trend,
     )
     assert metrics.hrv_trend is not None
     for p in metrics.hrv_trend:
@@ -598,7 +590,8 @@ def test_hrv_four_week_trimming() -> None:
 def test_hrv_missing_dates_do_not_fail() -> None:
     client = _complete_client(hrv={})
     metrics = GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=None,
+        date(2026, 7, 28),
+        previous_hrv_trend=None,
     )
     assert metrics.hrv_trend is None
 
@@ -645,14 +638,26 @@ def test_body_battery_timeline_filters_invalid() -> None:
     assert timeline[1].value == 80
 
 
-def test_body_battery_timeline_downsamples_to_48() -> None:
-    values = [[1753660800000 + i * 60000, i % 100] for i in range(100)]
+def test_body_battery_timeline_downsamples_to_192() -> None:
+    values = [[1753660800000 + i * 60000, i % 100] for i in range(250)]
     payload = [{"date": "2026-07-28", "bodyBatteryValuesArray": values}]
     timeline = _extract_body_battery_timeline(payload)
     assert timeline is not None
-    assert len(timeline) == 48
+    assert len(timeline) == 192
     assert timeline[0].value == values[0][1]
     assert timeline[-1].value == values[-1][1]
+
+
+def test_body_battery_timeline_keeps_brief_extrema() -> None:
+    values = [[1753660800000 + i * 60000, 50] for i in range(250)]
+    values[80][1] = 95
+    values[160][1] = 5
+    payload = [{"date": "2026-07-28", "bodyBatteryValuesArray": values}]
+    timeline = _extract_body_battery_timeline(payload)
+    assert timeline is not None
+    assert len(timeline) == 192
+    assert max(p.value for p in timeline) == 95
+    assert min(p.value for p in timeline) == 5
 
 
 def test_body_battery_timeline_empty() -> None:
@@ -705,7 +710,8 @@ def test_downsample_preserves_first_and_last() -> None:
     base = datetime(2026, 7, 28, 0, 0, tzinfo=UTC)
     points = [
         TimelinePointInternal(
-            timestamp=base + timedelta(minutes=i), value=i,
+            timestamp=base + timedelta(minutes=i),
+            value=i,
         )
         for i in range(100)
     ]
@@ -719,11 +725,37 @@ def test_downsample_noop_under_limit() -> None:
     base = datetime(2026, 7, 28, 0, 0, tzinfo=UTC)
     points = [
         TimelinePointInternal(
-            timestamp=base + timedelta(minutes=i), value=i,
+            timestamp=base + timedelta(minutes=i),
+            value=i,
         )
         for i in range(5)
     ]
-    assert _downsample(points, max_points=48) is points
+    assert _downsample(points, max_points=240) is points
+
+
+def test_extrema_aware_indices_preserve_endpoints_and_time_distribution() -> None:
+    values = [50.0] * 1000
+    values[75] = 0.0
+    values[425] = 100.0
+    values[875] = 5.0
+    indices = _extrema_aware_indices(values, 20)
+    assert len(indices) == 20
+    assert indices[0] == 0
+    assert indices[-1] == 999
+    assert 75 in indices
+    assert 425 in indices
+    assert 875 in indices
+    assert any(i < 250 for i in indices)
+    assert any(250 <= i < 500 for i in indices)
+    assert any(500 <= i < 750 for i in indices)
+    assert any(i >= 750 for i in indices)
+
+
+def test_extrema_aware_indices_honor_tiny_caps() -> None:
+    values = [4.0, 1.0, 9.0, 2.0, 7.0]
+    assert _extrema_aware_indices(values, 0) == []
+    assert _extrema_aware_indices(values, 1) == [0]
+    assert _extrema_aware_indices(values, 2) == [0, 4]
 
 
 # --- Last activity ---
@@ -822,27 +854,33 @@ def test_normalize_with_expanded_fields() -> None:
         sleep_score=84,
         sleep_duration_seconds=22620,
         sleep_stages=SleepStagesInternal(
-            deep_seconds=5400, light_seconds=10800,
-            rem_seconds=4200, awake_seconds=2220,
+            deep_seconds=5400,
+            light_seconds=10800,
+            rem_seconds=4200,
+            awake_seconds=2220,
         ),
         overnight_hrv=47,
         hrv_status="BALANCED",
         hrv_trend=[
             HrvTrendPointInternal(
-                date=date(2026, 7, 28), overnight_average=47,
-                seven_day_average=46, status="BALANCED",
+                date=date(2026, 7, 28),
+                overnight_average=47,
+                seven_day_average=46,
+                status="BALANCED",
             ),
         ],
         body_battery=72,
         body_battery_timeline=[
             TimelinePointInternal(
-                timestamp=datetime(2026, 7, 28, 0, 0, tzinfo=UTC), value=50,
+                timestamp=datetime(2026, 7, 28, 0, 0, tzinfo=UTC),
+                value=50,
             ),
         ],
         stress=18,
         stress_timeline=[
             TimelinePointInternal(
-                timestamp=datetime(2026, 7, 28, 1, 0, tzinfo=UTC), value=15,
+                timestamp=datetime(2026, 7, 28, 1, 0, tzinfo=UTC),
+                value=15,
             ),
         ],
         training_readiness=81,
@@ -954,7 +992,7 @@ def test_sort_dedup_and_downsample_unsorted_input() -> None:
         TimelinePointInternal(timestamp=base + timedelta(minutes=10), value=40),
         TimelinePointInternal(timestamp=base + timedelta(minutes=20), value=50),
     ]
-    result = _sort_dedup_and_downsample(points, max_points=48)
+    result = _sort_dedup_and_downsample(points, max_points=240)
     assert len(result) == 3
     assert result[0].value == 40
     assert result[1].value == 50
@@ -968,7 +1006,7 @@ def test_sort_dedup_and_downsample_duplicate_timestamps() -> None:
         TimelinePointInternal(timestamp=base, value=20),
         TimelinePointInternal(timestamp=base + timedelta(minutes=10), value=30),
     ]
-    result = _sort_dedup_and_downsample(points, max_points=48)
+    result = _sort_dedup_and_downsample(points, max_points=240)
     assert len(result) == 2
     assert result[0].value == 20
     assert result[1].value == 30
@@ -1102,10 +1140,19 @@ def test_activity_serialization_excludes_sensitive_fields() -> None:
     assert activity is not None
     dumped_json = activity.model_dump_json()
     for forbidden in (
-        "activityId", "ownerId", "ownerDisplayName",
-        "startLatitude", "startLongitude", "endLatitude", "endLongitude",
-        "description", "courseId", "locationName",
-        "secret_user", "9999999", "44.4268",
+        "activityId",
+        "ownerId",
+        "ownerDisplayName",
+        "startLatitude",
+        "startLongitude",
+        "endLatitude",
+        "endLongitude",
+        "description",
+        "courseId",
+        "locationName",
+        "secret_user",
+        "9999999",
+        "44.4268",
     ):
         assert forbidden not in dumped_json
 
@@ -1124,10 +1171,7 @@ def test_widget_response_rejects_overlong_hrv_trend() -> None:
 
 def test_widget_response_rejects_overlong_timeline() -> None:
     base = datetime(2026, 7, 28, 0, 0, tzinfo=UTC)
-    points = [
-        TimelinePoint(timestamp=base + timedelta(minutes=i), value=50)
-        for i in range(49)
-    ]
+    points = [TimelinePoint(timestamp=base + timedelta(minutes=i), value=50) for i in range(193)]
     with pytest.raises(ValidationError):
         WidgetResponse(schemaVersion=1, bodyBatteryTimeline=points)
     with pytest.raises(ValidationError):
@@ -1168,8 +1212,10 @@ def test_activity_hr_timeline_from_details_fixture() -> None:
     assert len(detail_calls) == 1
     assert detail_calls[0][1] == (424242, 2000, 0)
     dumped = normalize_daily_metrics(
-        metrics, refreshed_at=datetime(2026, 7, 28, 12, 0, tzinfo=UTC),
-        refresh_status=RefreshStatus.SUCCESS, stale=False,
+        metrics,
+        refreshed_at=datetime(2026, 7, 28, 12, 0, tzinfo=UTC),
+        refresh_status=RefreshStatus.SUCCESS,
+        stale=False,
     ).model_dump_json(by_alias=True)
     assert "heartRateTimeline" in dumped
     assert "speedTimeline" in dumped
@@ -1180,6 +1226,7 @@ def test_activity_hr_timeline_from_details_fixture() -> None:
     assert "44.1" not in dumped
     assert "directVerticalSpeed" not in dumped
     assert "directCadence" not in dumped
+
 
 def test_activity_hr_call_budget_initial_backfill_with_details() -> None:
     hrv_by_date = {}
@@ -1201,7 +1248,8 @@ def test_activity_hr_call_budget_initial_backfill_with_details() -> None:
         activity_details=_load_fixture("activity_details_hr.json"),
     )
     GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=None,
+        date(2026, 7, 28),
+        previous_hrv_trend=None,
     )
     assert len(client.calls) == 37
 
@@ -1224,7 +1272,8 @@ def test_activity_hr_call_budget_same_day_with_details() -> None:
         activity_details=_load_fixture("activity_details_hr.json"),
     )
     GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=existing_trend,
+        date(2026, 7, 28),
+        previous_hrv_trend=existing_trend,
     )
     assert len(client.calls) == 10
 
@@ -1238,7 +1287,8 @@ def test_activity_hr_budget_without_id_remains_36_and_9() -> None:
     }
     client = _complete_client(hrv_by_date=hrv_by_date)
     GarminMetricsAdapter(client).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=None,
+        date(2026, 7, 28),
+        previous_hrv_trend=None,
     )
     assert len(client.calls) == 36
 
@@ -1253,7 +1303,8 @@ def test_activity_hr_budget_without_id_remains_36_and_9() -> None:
     ]
     client2 = _complete_client()
     GarminMetricsAdapter(client2).fetch_daily_metrics(
-        date(2026, 7, 28), previous_hrv_trend=existing,
+        date(2026, 7, 28),
+        previous_hrv_trend=existing,
     )
     assert len(client2.calls) == 9
 
@@ -1275,23 +1326,29 @@ def test_activity_hr_details_unavailable_keeps_summary() -> None:
 def test_activity_hr_malformed_details_returns_none() -> None:
     assert _extract_activity_hr_timeline(None) is None
     assert _extract_activity_hr_timeline({"metricDescriptors": []}) is None
-    assert _extract_activity_hr_timeline(
-        {
-            "metricDescriptors": [{"key": "directHeartRate", "metricsIndex": 0}],
-            "activityDetailMetrics": [{"metrics": [10]}],
-        }
-    ) is None
+    assert (
+        _extract_activity_hr_timeline(
+            {
+                "metricDescriptors": [{"key": "directHeartRate", "metricsIndex": 0}],
+                "activityDetailMetrics": [{"metrics": [10]}],
+            }
+        )
+        is None
+    )
 
 
 def test_activity_hr_downsample_preserves_first_last() -> None:
     points = [
         ActivityHeartRatePointInternal(elapsed_seconds=i * 10, heart_rate=100 + (i % 20))
-        for i in range(100)
+        for i in range(300)
     ]
-    result = _sort_dedup_downsample_hr(points, max_points=48)
-    assert len(result) == 48
+    points[120] = ActivityHeartRatePointInternal(elapsed_seconds=1200, heart_rate=190)
+    result = _sort_dedup_downsample_hr(points, max_points=240)
+    assert len(result) == 240
     assert result[0].elapsed_seconds == 0
-    assert result[-1].elapsed_seconds == 990
+    assert result[-1].elapsed_seconds == 2990
+    assert max(p.heart_rate for p in result) == 190
+    assert any(p.elapsed_seconds == 1200 for p in result)
 
 
 def test_activity_hr_public_model_bounds() -> None:
@@ -1301,9 +1358,7 @@ def test_activity_hr_public_model_bounds() -> None:
         ActivityHeartRatePoint(elapsedSeconds=0, heartRate=10)
     with pytest.raises(ValidationError):
         ActivityHeartRatePoint(elapsedSeconds=0, heartRate=260)
-    overlong = [
-        ActivityHeartRatePoint(elapsedSeconds=i, heartRate=120) for i in range(49)
-    ]
+    overlong = [ActivityHeartRatePoint(elapsedSeconds=i, heartRate=120) for i in range(241)]
     with pytest.raises(ValidationError):
         LastActivity(heartRateTimeline=overlong)
 
@@ -1356,6 +1411,7 @@ def test_activity_hr_timeline_snapshot_round_trip(tmp_path: Path) -> None:
     dumped = loaded.payload.model_dump_json(by_alias=True)
     assert "heartRateTimeline" in dumped
     assert "activityId" not in dumped
+
 
 # --- Activity speed timeline ---
 
@@ -1441,7 +1497,7 @@ def test_activity_speed_sort_dedupe_prefers_spike() -> None:
         ActivitySpeedPointInternal(elapsed_seconds=30, speed_meters_per_second=9.0),
         ActivitySpeedPointInternal(elapsed_seconds=60, speed_meters_per_second=3.0),
     ]
-    result = _sort_dedup_downsample_speed(points, max_points=48)
+    result = _sort_dedup_downsample_speed(points, max_points=240)
     assert [p.elapsed_seconds for p in result] == [0, 30, 60]
     assert result[1].speed_meters_per_second == 9.0
 
@@ -1449,13 +1505,13 @@ def test_activity_speed_sort_dedupe_prefers_spike() -> None:
 def test_activity_speed_downsample_keeps_first_last_and_brief_max() -> None:
     points = [
         ActivitySpeedPointInternal(elapsed_seconds=i, speed_meters_per_second=2.0)
-        for i in range(80)
+        for i in range(300)
     ]
     points[40] = ActivitySpeedPointInternal(elapsed_seconds=40, speed_meters_per_second=40.0)
-    result = _sort_dedup_downsample_speed(points, max_points=48)
-    assert len(result) == 48
+    result = _sort_dedup_downsample_speed(points, max_points=240)
+    assert len(result) == 240
     assert result[0].elapsed_seconds == 0
-    assert result[-1].elapsed_seconds == 79
+    assert result[-1].elapsed_seconds == 299
     assert max(p.speed_meters_per_second for p in result) == 40.0
     assert any(p.elapsed_seconds == 40 for p in result)
 
@@ -1467,9 +1523,7 @@ def test_activity_speed_public_model_bounds() -> None:
         ActivitySpeedPoint(elapsedSeconds=0, speedMetersPerSecond=-0.1)
     with pytest.raises(ValidationError):
         ActivitySpeedPoint(elapsedSeconds=0, speedMetersPerSecond=150.1)
-    overlong = [
-        ActivitySpeedPoint(elapsedSeconds=i, speedMetersPerSecond=1.0) for i in range(49)
-    ]
+    overlong = [ActivitySpeedPoint(elapsedSeconds=i, speedMetersPerSecond=1.0) for i in range(241)]
     with pytest.raises(ValidationError):
         LastActivity(speedTimeline=overlong)
 

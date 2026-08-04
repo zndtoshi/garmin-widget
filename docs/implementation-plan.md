@@ -244,7 +244,7 @@ This phase proves Garmin access locally. It must not expose a Garmin-backed publ
 
 ### Phase 8A: Expanded backend data contract (deployed and live-verified)
 
-Implemented additive nullable fields for premium widgets: `sleepStages`, `hrvTrend` (bounded 7-day rolling with backfill), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 48 after downsampling), and `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; null-only objects are filtered). All fields maintain `schemaVersion=1` backward compatibility. Android backward-compat JVM tests confirm original fields still parse from expanded payloads.
+Implemented additive nullable fields for premium widgets: `sleepStages`, `hrvTrend` (bounded 7-day rolling with backfill), `bodyBatteryTimeline`, `stressTimeline` (sorted/deduped, values 0–100, max 192 after extrema-aware downsampling), and `lastActivity` (`startTimeGMT` is the trusted UTC source, including naive GMT strings; null-only objects are filtered; optional `heartRateTimeline` / `speedTimeline` max 240 each). All fields maintain `schemaVersion=1` backward compatibility. Android backward-compat JVM tests confirm original fields still parse from expanded payloads.
 
 ### Phase 8B/8D: Android premium widget UI (in progress)
 
