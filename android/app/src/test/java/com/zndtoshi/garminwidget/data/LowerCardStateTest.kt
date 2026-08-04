@@ -1,6 +1,7 @@
 package com.zndtoshi.garminwidget.data
 
 import java.time.Instant
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -166,11 +167,26 @@ class LowerCardStateTest {
     fun migration_preserves_old_dismissed_activity_without_false_event() {
         val cached = response(activityStartedAt = "2026-07-29T17:00:00Z")
         val identity = activityIdentity(cached.lastActivity)
-        val migrated = migrateLowerCardState(cached, identity)
-        assertEquals(LowerCardKind.NONE, migrated.selected)
+        val zone = ZoneId.of("UTC")
+        val migrated = migrateLowerCardState(cached, identity, zone)
+        assertEquals(LowerCardKind.BODY_BATTERY, migrated.selected)
         assertEquals(identity, migrated.dismissedActivityIdentity)
 
-        val visible = migrateLowerCardState(cached, dismissedActivityIdentity = null)
+        val sameDayActivity = response(
+            activityStartedAt = "2026-07-30T17:00:00Z",
+        )
+        val visible = migrateLowerCardState(
+            sameDayActivity,
+            dismissedActivityIdentity = null,
+            zoneId = zone,
+        )
         assertEquals(LowerCardKind.ACTIVITY, visible.selected)
+
+        val dismissedSameDay = migrateLowerCardState(
+            sameDayActivity,
+            activityIdentity(sameDayActivity.lastActivity),
+            zone,
+        )
+        assertEquals(LowerCardKind.NONE, dismissedSameDay.selected)
     }
 }

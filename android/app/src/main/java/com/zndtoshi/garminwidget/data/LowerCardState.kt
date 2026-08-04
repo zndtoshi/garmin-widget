@@ -1,5 +1,8 @@
 package com.zndtoshi.garminwidget.data
 
+import java.time.LocalDate
+import java.time.ZoneId
+
 /**
  * Event-driven lower-card selection (full-width Body Battery vs latest Activity).
  * Pure helpers — no Android framework dependencies — so JVM tests can cover edge cases.
@@ -118,15 +121,19 @@ internal fun dismissLowerCard(
 internal fun migrateLowerCardState(
     cached: WidgetResponse?,
     dismissedActivityIdentity: String?,
+    zoneId: ZoneId = ZoneId.systemDefault(),
 ): LowerCardState {
-    val selected =
-        if (cached?.lastActivity != null &&
-            activityIdentity(cached.lastActivity) != dismissedActivityIdentity
-        ) {
-            LowerCardKind.ACTIVITY
-        } else {
-            LowerCardKind.NONE
-        }
+    val activity = cached?.lastActivity
+    val currentActivityIdentity = activityIdentity(activity)
+    val morningDate = morningIdentity(cached)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    val activityDate = activity?.startedAt?.atZone(zoneId)?.toLocalDate()
+    val morningIsNewer = morningDate != null &&
+        (activity == null || (activityDate != null && activityDate.isBefore(morningDate)))
+    val selected = when {
+        morningIsNewer -> LowerCardKind.BODY_BATTERY
+        activity != null && currentActivityIdentity != dismissedActivityIdentity -> LowerCardKind.ACTIVITY
+        else -> LowerCardKind.NONE
+    }
     return LowerCardState(
         selected = selected,
         dismissedMorningIdentity = null,

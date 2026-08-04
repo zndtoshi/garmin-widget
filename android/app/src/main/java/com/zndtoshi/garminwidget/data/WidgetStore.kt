@@ -46,6 +46,7 @@ class WidgetStore(context: Context) {
             .putString(KEY_DISMISSED_MORNING_IDENTITY, nextLower.dismissedMorningIdentity)
             .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, nextLower.dismissedActivityIdentity)
             .putBoolean(KEY_LOWER_CARD_MIGRATED, true)
+            .putInt(KEY_LOWER_CARD_STATE_VERSION, LOWER_CARD_STATE_VERSION)
             .commit()
         true
     }
@@ -87,6 +88,7 @@ class WidgetStore(context: Context) {
             .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, identity)
             .putString(KEY_LOWER_CARD_SELECTED, LowerCardKind.NONE.name)
             .putBoolean(KEY_LOWER_CARD_MIGRATED, true)
+            .putInt(KEY_LOWER_CARD_STATE_VERSION, LOWER_CARD_STATE_VERSION)
             .commit()
     }
 
@@ -96,6 +98,7 @@ class WidgetStore(context: Context) {
             .putString(KEY_DISMISSED_MORNING_IDENTITY, state.dismissedMorningIdentity)
             .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, state.dismissedActivityIdentity)
             .putBoolean(KEY_LOWER_CARD_MIGRATED, true)
+            .putInt(KEY_LOWER_CARD_STATE_VERSION, LOWER_CARD_STATE_VERSION)
             .commit()
     }
 
@@ -114,9 +117,9 @@ class WidgetStore(context: Context) {
     }
 
     private fun readLowerCardState(cached: WidgetResponse?): LowerCardState {
-        val migrated = prefs.getBoolean(KEY_LOWER_CARD_MIGRATED, false)
+        val stateVersion = prefs.getInt(KEY_LOWER_CARD_STATE_VERSION, 0)
         val dismissedActivity = prefs.getString(KEY_DISMISSED_ACTIVITY_IDENTITY, null)
-        if (!migrated) {
+        if (stateVersion < LOWER_CARD_STATE_VERSION) {
             val baseline = migrateLowerCardState(cached, dismissedActivity)
             applyLowerCardState(baseline)
             return baseline
@@ -139,6 +142,9 @@ class WidgetStore(context: Context) {
         const val KEY_DISMISSED_MORNING_IDENTITY = "dismissed_morning_identity"
         const val KEY_LOWER_CARD_SELECTED = "lower_card_selected"
         const val KEY_LOWER_CARD_MIGRATED = "lower_card_migrated"
+        const val KEY_LOWER_CARD_STATE_VERSION = "lower_card_state_version"
+
+        private const val LOWER_CARD_STATE_VERSION = 2
 
         /** Shared across store instances used by workers and Glance actions in this process. */
         private val STATE_LOCK = Any()
