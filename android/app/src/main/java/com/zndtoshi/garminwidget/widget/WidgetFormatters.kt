@@ -37,6 +37,9 @@ internal fun formatSleepDuration(seconds: Int?): String {
     return "${hours}h ${minutes}m"
 }
 
+internal fun formatRemRingDuration(seconds: Int?): String? =
+    seconds?.takeIf { it > 0 }?.let(::formatSleepDuration)
+
 internal fun formatStageLabel(name: String, seconds: Int?): String =
     if (seconds == null || seconds <= 0) "$name —" else "$name ${formatSleepDuration(seconds)}"
 

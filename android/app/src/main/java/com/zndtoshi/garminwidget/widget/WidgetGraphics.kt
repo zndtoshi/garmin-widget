@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
+import android.graphics.Typeface
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
 import com.zndtoshi.garminwidget.data.ActivitySpeedPoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
@@ -365,7 +366,11 @@ internal fun buildCombinedChartGeometry(
     return ChartGeometry(w, h, left, top, right, bottom, batteryPoints, stressPoints)
 }
 
-internal fun drawSleepRingBitmap(sizePx: Int, segments: List<RingSegment>): Bitmap {
+internal fun drawSleepRingBitmap(
+    sizePx: Int,
+    segments: List<RingSegment>,
+    remDurationLabel: String? = null,
+): Bitmap {
     val safe = sizePx.coerceAtLeast(1)
     val bmp = Bitmap.createBitmap(safe, safe, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bmp)
@@ -379,6 +384,38 @@ internal fun drawSleepRingBitmap(sizePx: Int, segments: List<RingSegment>): Bitm
     for (segment in segments) {
         paint.color = segment.color
         canvas.drawArc(rect, segment.startDegrees, segment.sweepDegrees, false, paint)
+    }
+    val remSegment = segments.firstOrNull { it.color == WidgetPalette.rem }
+    if (remSegment != null && !remDurationLabel.isNullOrBlank()) {
+        val center = safe / 2f
+        val radius = (safe - stroke) / 2f
+        val midpointDegrees = remSegment.startDegrees + remSegment.sweepDegrees / 2f
+        val midpointRadians = Math.toRadians(midpointDegrees.toDouble())
+        val labelX = center + radius * kotlin.math.cos(midpointRadians).toFloat()
+        val labelY = center + radius * kotlin.math.sin(midpointRadians).toFloat()
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            textSize = stroke * 0.52f
+            setShadowLayer(max(1f, stroke * 0.08f), 0f, 0f, 0xCC000000.toInt())
+        }
+        val availableArcLength = Math.toRadians(remSegment.sweepDegrees.toDouble()).toFloat() * radius * 0.82f
+        val measuredWidth = labelPaint.measureText(remDurationLabel)
+        if (measuredWidth > availableArcLength && measuredWidth > 0f) {
+            labelPaint.textSize *= (availableArcLength / measuredWidth).coerceAtLeast(0.62f)
+        }
+        val tangentDegrees = midpointDegrees + 90f
+        val readableRotation = if (tangentDegrees > 90f && tangentDegrees < 270f) {
+            tangentDegrees + 180f
+        } else {
+            tangentDegrees
+        }
+        val baseline = labelY - (labelPaint.ascent() + labelPaint.descent()) / 2f
+        canvas.save()
+        canvas.rotate(readableRotation, labelX, labelY)
+        canvas.drawText(remDurationLabel, labelX, baseline, labelPaint)
+        canvas.restore()
     }
     return bmp
 }

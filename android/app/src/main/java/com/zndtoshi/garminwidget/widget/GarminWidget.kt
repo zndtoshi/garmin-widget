@@ -342,7 +342,13 @@ private fun SleepRing(
     val px = LayoutMetrics.dpToRenderPx(ringDp.value)
     Box(contentAlignment = Alignment.Center, modifier = modifier.width(ringDp).height(ringDp)) {
         Image(
-            provider = ImageProvider(drawSleepRingBitmap(px, buildSleepRingSegments(data.sleepStages))),
+            provider = ImageProvider(
+                drawSleepRingBitmap(
+                    px,
+                    buildSleepRingSegments(data.sleepStages),
+                    formatRemRingDuration(data.sleepStages?.remSeconds),
+                ),
+            ),
             contentDescription = sleepRingContentDescription(data.sleepScore, data.sleepStages != null),
             modifier = GlanceModifier.fillMaxSize(),
         )

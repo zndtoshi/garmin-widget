@@ -13,6 +13,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -214,6 +215,9 @@ class WidgetFormattersTest {
     fun `sleep stage legend is absent from widget presentation`() {
         assertFalse(widgetRendersSleepStageLegend())
         assertEquals("Deep 1h 30m", formatStageLabel("Deep", 5400))
+        assertEquals("1h 10m", formatRemRingDuration(4200))
+        assertNull(formatRemRingDuration(null))
+        assertNull(formatRemRingDuration(0))
     }
 
     @Test
