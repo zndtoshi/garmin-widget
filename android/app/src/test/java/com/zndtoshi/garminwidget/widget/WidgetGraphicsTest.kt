@@ -46,6 +46,13 @@ class WidgetGraphicsTest {
     }
 
     @Test
+    fun `rem duration label favors far left while staying inside its arc`() {
+        assertEquals(180f, sleepRingRemLabelAngle(RingSegment(130f, 100f, WidgetPalette.rem)), 0.01f)
+        assertEquals(156f, sleepRingRemLabelAngle(RingSegment(120f, 42f, WidgetPalette.rem)), 0.01f)
+        assertEquals(204f, sleepRingRemLabelAngle(RingSegment(198f, 42f, WidgetPalette.rem)), 0.01f)
+    }
+
+    @Test
     fun `combined chart geometry handles empty one-point sparse unsorted and fixed scale`() {
         val empty = buildCombinedChartGeometry(100, 50, emptyList(), emptyList())
         assertTrue(empty.batteryPoints.isEmpty())

@@ -31,6 +31,13 @@ internal data class RingSegment(
     val color: Int,
 )
 
+internal fun sleepRingRemLabelAngle(segment: RingSegment): Float {
+    val edgePadding = min(6f, segment.sweepDegrees * 0.15f)
+    val firstSafeAngle = segment.startDegrees + edgePadding
+    val lastSafeAngle = segment.startDegrees + segment.sweepDegrees - edgePadding
+    return 180f.coerceIn(firstSafeAngle, lastSafeAngle)
+}
+
 internal data class ChartPoint(
     val x: Float,
     val y: Float,
@@ -388,9 +395,11 @@ internal fun drawSleepRingBitmap(
     val remSegment = segments.firstOrNull { it.color == WidgetPalette.rem }
     if (remSegment != null && !remDurationLabel.isNullOrBlank()) {
         val center = safe / 2f
-        val radius = (safe - stroke) / 2f
-        val midpointDegrees = remSegment.startDegrees + remSegment.sweepDegrees / 2f
-        val midpointRadians = Math.toRadians(midpointDegrees.toDouble())
+        // The arc itself is centered at safe / 2 - stroke. Keep the label on that
+        // centerline (not the outer edge), and favor the ring's far-left position.
+        val radius = center - stroke
+        val labelDegrees = sleepRingRemLabelAngle(remSegment)
+        val midpointRadians = Math.toRadians(labelDegrees.toDouble())
         val labelX = center + radius * kotlin.math.cos(midpointRadians).toFloat()
         val labelY = center + radius * kotlin.math.sin(midpointRadians).toFloat()
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -405,7 +414,7 @@ internal fun drawSleepRingBitmap(
         if (measuredWidth > availableArcLength && measuredWidth > 0f) {
             labelPaint.textSize *= (availableArcLength / measuredWidth).coerceAtLeast(0.62f)
         }
-        val tangentDegrees = midpointDegrees + 90f
+        val tangentDegrees = labelDegrees + 90f
         val readableRotation = if (tangentDegrees > 90f && tangentDegrees < 270f) {
             tangentDegrees + 180f
         } else {
