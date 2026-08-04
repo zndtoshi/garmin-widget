@@ -18,6 +18,7 @@ Phase 8A backend data contract is merged, deployed, and live-verified. Phase 8B/
 - Background opacity control (0-100%) persisted locally with immediate widget refresh
 - Activity HR chart color mode (`White + red peaks` default, or `Garmin HR zones`) persisted locally; zone colors are percentage bands reaching pure red at 95% of the resolved max-HR ceiling, not personal Garmin zone settings
 - Closing the lower card dismisses both the current Body Battery and latest Activity views in one action; new morning/activity events and the existing explicit restore flows still reopen the appropriate card
+- Body Battery/stress charts infer Garmin's payload-day boundary when the phone timezone differs while travelling, retaining the first sample and the appended current value; the optional activity speed overlay uses a thinner blue stroke
 - **Backend-first additive compatibility**: parser + cache handle deployed additive fields plus optional `lastActivity.heartRateTimeline` while preserving original-field compatibility. Sleep shows ring + total duration only (no stage legend).
 
 The app never stores Garmin credentials and never contacts Garmin directly.

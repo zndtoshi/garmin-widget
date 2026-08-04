@@ -336,6 +336,38 @@ class WidgetFormattersTest {
     }
 
     @Test
+    fun `payload timeline range follows matching Garmin midnight while phone is travelling`() {
+        val phoneZone = ZoneId.of("Europe/Belgrade")
+        val backendMidnight = Instant.parse("2026-08-03T21:00:00Z")
+        val battery = listOf(
+            TimelinePoint(backendMidnight, 42),
+            TimelinePoint(Instant.parse("2026-08-04T11:57:00Z"), 63),
+        )
+        val stress = listOf(
+            TimelinePoint(backendMidnight, 10),
+            TimelinePoint(Instant.parse("2026-08-04T12:00:00Z"), 25),
+        )
+
+        val range = timelineDayRangeForPayload("2026-08-04", phoneZone, battery, stress)!!
+
+        assertEquals(backendMidnight, range.first)
+        assertEquals(Instant.parse("2026-08-04T21:00:00Z"), range.second)
+        assertEquals(battery, filterTimelineForRange(battery, range))
+    }
+
+    @Test
+    fun `payload timeline range keeps phone fallback when source starts disagree`() {
+        val phoneZone = ZoneId.of("Europe/Belgrade")
+        val battery = listOf(TimelinePoint(Instant.parse("2026-08-03T21:00:00Z"), 42))
+        val stress = listOf(TimelinePoint(Instant.parse("2026-08-04T01:00:00Z"), 10))
+
+        val range = timelineDayRangeForPayload("2026-08-04", phoneZone, battery, stress)!!
+
+        assertEquals(Instant.parse("2026-08-03T22:00:00Z"), range.first)
+        assertEquals(Instant.parse("2026-08-04T22:00:00Z"), range.second)
+    }
+
+    @Test
     fun `appends fresher summary value to body battery timeline`() {
         val zone = ZoneId.of("Europe/Bucharest")
         val timeline = listOf(
@@ -367,6 +399,25 @@ class WidgetFormattersTest {
             timeline,
             appendCurrentBodyBatteryPoint(timeline, 88, "2026-07-31T04:00:00Z", "2026-07-30", zone),
         )
+    }
+
+    @Test
+    fun `appends body battery summary using inferred backend day range`() {
+        val timeline = listOf(TimelinePoint(Instant.parse("2026-08-03T21:00:00Z"), 42))
+        val range = Instant.parse("2026-08-03T21:00:00Z") to
+            Instant.parse("2026-08-04T21:00:00Z")
+
+        val appended = appendCurrentBodyBatteryPoint(
+            timeline,
+            63,
+            "2026-08-04T12:32:00Z",
+            "2026-08-04",
+            ZoneId.of("Europe/Belgrade"),
+            range,
+        )
+
+        assertEquals(listOf(42, 63), appended.map { it.value })
+        assertEquals(Instant.parse("2026-08-04T12:32:00Z"), appended.last().timestamp)
     }
 
     @Test

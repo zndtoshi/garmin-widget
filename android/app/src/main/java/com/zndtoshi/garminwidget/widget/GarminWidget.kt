@@ -474,15 +474,18 @@ private fun BodyBatteryStrip(
     chartWidthDp: Dp,
 ) {
     val zone = ZoneId.systemDefault()
+    val rawBodyBattery = normalizeDailyTimeline(data.bodyBatteryTimeline)
+    val rawStress = normalizeDailyTimeline(data.stressTimeline)
+    val dayRange = timelineDayRangeForPayload(data.date, zone, rawBodyBattery, rawStress)
     val bodyBattery = appendCurrentBodyBatteryPoint(
-        points = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone),
+        points = filterTimelineForRange(rawBodyBattery, dayRange),
         currentValue = data.bodyBattery,
         refreshedAt = data.refreshedAt,
         responseDate = data.date,
         zoneId = zone,
+        timelineRange = dayRange,
     )
-    val stress = filterTimelineForResponseDate(data.stressTimeline, data.date, zone)
-    val dayRange = timelineDayRange(data.date, zone)
+    val stress = filterTimelineForRange(rawStress, dayRange)
     val header = bodyBatteryHeaderPresentation(data.bodyBattery, showTitle = true)
     Box(
         modifier = GlanceModifier

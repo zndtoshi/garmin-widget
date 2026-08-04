@@ -115,11 +115,16 @@ internal fun appendCurrentBodyBatteryPoint(
     refreshedAt: String?,
     responseDate: String?,
     zoneId: ZoneId,
+    timelineRange: Pair<Instant, Instant>? = null,
 ): List<TimelinePoint> {
     val value = currentValue?.takeIf { it in 0..100 } ?: return points
     val timestamp = runCatching { Instant.parse(refreshedAt) }.getOrNull() ?: return points
-    val targetDate = runCatching { LocalDate.parse(responseDate) }.getOrNull()
-    if (targetDate != null && timestamp.atZone(zoneId).toLocalDate() != targetDate) return points
+    if (timelineRange != null) {
+        if (timestamp.isBefore(timelineRange.first) || !timestamp.isBefore(timelineRange.second)) return points
+    } else {
+        val targetDate = runCatching { LocalDate.parse(responseDate) }.getOrNull()
+        if (targetDate != null && timestamp.atZone(zoneId).toLocalDate() != targetDate) return points
+    }
 
     val sorted = normalizeDailyTimeline(points)
     if (sorted.lastOrNull()?.timestamp?.let { !timestamp.isAfter(it) } == true) return sorted
@@ -130,6 +135,48 @@ internal fun timelineDayRange(responseDate: String?, zoneId: ZoneId): Pair<Insta
     val date = runCatching { LocalDate.parse(responseDate) }.getOrNull() ?: return null
     val start = date.atStartOfDay(zoneId).toInstant()
     return start to date.plusDays(1).atStartOfDay(zoneId).toInstant()
+}
+
+/**
+ * Garmin timestamps follow the backend's configured day, which can differ from the
+ * phone timezone while travelling. Matching Body Battery and stress start samples
+ * are a reliable midnight anchor; otherwise retain the phone-timezone fallback.
+ */
+internal fun timelineDayRangeForPayload(
+    responseDate: String?,
+    zoneId: ZoneId,
+    battery: List<TimelinePoint>,
+    stress: List<TimelinePoint>,
+): Pair<Instant, Instant>? {
+    val fallback = timelineDayRange(responseDate, zoneId) ?: return null
+    val batteryStart = normalizeDailyTimeline(battery).firstOrNull()?.timestamp
+    val stressStart = normalizeDailyTimeline(stress).firstOrNull()?.timestamp
+    if (batteryStart == null || stressStart == null) return fallback
+
+    val startsWithinFiveMinutes = kotlin.math.abs(
+        batteryStart.toEpochMilli() - stressStart.toEpochMilli(),
+    ) <= 5 * 60 * 1000L
+    if (!startsWithinFiveMinutes) return fallback
+
+    val inferredStart = minOf(batteryStart, stressStart)
+    val plausibleTimezoneDifference = kotlin.math.abs(
+        inferredStart.toEpochMilli() - fallback.first.toEpochMilli(),
+    ) <= 14 * 60 * 60 * 1000L
+    if (!plausibleTimezoneDifference) return fallback
+
+    val dayLengthMillis = fallback.second.toEpochMilli() - fallback.first.toEpochMilli()
+    return inferredStart to Instant.ofEpochMilli(inferredStart.toEpochMilli() + dayLengthMillis)
+}
+
+internal fun filterTimelineForRange(
+    points: List<TimelinePoint>,
+    range: Pair<Instant, Instant>?,
+): List<TimelinePoint> {
+    val normalized = normalizeDailyTimeline(points)
+    if (range == null) return normalized
+    return normalized.filter { point ->
+        !point.timestamp.isBefore(range.first) && point.timestamp.isBefore(range.second)
+    }
 }
 
 internal fun formatLocalTime(

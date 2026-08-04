@@ -1459,7 +1459,7 @@ internal fun activityChartDrawOrder(): List<ActivityChartLayer> = listOf(
 )
 
 internal fun activitySpeedStrokeWidthPx(hrStrokePx: Float): Float =
-    (hrStrokePx * 0.85f).coerceAtMost(hrStrokePx)
+    (hrStrokePx * 0.55f).coerceIn(1f, hrStrokePx)
 
 internal fun activitySpeedFillStartAlpha(): Int = 0x55
 
