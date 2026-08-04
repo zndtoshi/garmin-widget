@@ -74,6 +74,15 @@ internal fun classifyStressBar(value: Int): StressBarKind? = when (value) {
     else -> null
 }
 
+/**
+ * Expands the stress/rest bars for the compact widget chart. Raw Garmin stress
+ * values spend much of the day near the bottom of the 0..100 scale, where they
+ * become nearly invisible at widget size. Keep a visible baseline and amplify
+ * the range without allowing the bars to obscure the battery curve entirely.
+ */
+internal fun stressBarDisplayPercent(value: Int): Float =
+    (12f + value.coerceIn(0, 100) * 1.25f).coerceAtMost(88f)
+
 internal fun stressBarColorArgb(value: Int): Int = when (classifyStressBar(value)) {
     StressBarKind.REST -> WidgetPalette.stressRest
     StressBarKind.STRESS -> WidgetPalette.stress
@@ -344,11 +353,14 @@ internal fun buildCombinedChartGeometry(
         return bottom - (clamped / 100f) * (bottom - top)
     }
 
+    fun stressYOf(value: Int): Float =
+        bottom - (stressBarDisplayPercent(value) / 100f) * (bottom - top)
+
     val batteryPoints = sortedBattery.map {
         ChartPoint(x = xOf(it.timestamp.toEpochMilli()), y = yOf(it.value), value = it.value)
     }
     val stressPoints = sortedStress.map {
-        ChartPoint(x = xOf(it.timestamp.toEpochMilli()), y = yOf(it.value), value = it.value)
+        ChartPoint(x = xOf(it.timestamp.toEpochMilli()), y = stressYOf(it.value), value = it.value)
     }
     return ChartGeometry(w, h, left, top, right, bottom, batteryPoints, stressPoints)
 }

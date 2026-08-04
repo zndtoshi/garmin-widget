@@ -324,6 +324,32 @@ class WidgetGraphicsTest {
     }
 
     @Test
+    fun `stress bars are amplified for compact chart visibility and stay bounded`() {
+        assertEquals(12f, stressBarDisplayPercent(0), 0.01f)
+        assertEquals(24.5f, stressBarDisplayPercent(10), 0.01f)
+        assertEquals(43.25f, stressBarDisplayPercent(25), 0.01f)
+        assertEquals(62f, stressBarDisplayPercent(40), 0.01f)
+        assertEquals(88f, stressBarDisplayPercent(100), 0.01f)
+
+        val start = Instant.parse("2026-08-04T00:00:00Z")
+        val end = Instant.parse("2026-08-05T00:00:00Z")
+        val geometry = buildCombinedChartGeometry(
+            widthPx = 180,
+            heightPx = 72,
+            battery = emptyList(),
+            stress = listOf(
+                TimelinePoint(start, 0),
+                TimelinePoint(end, 25),
+            ),
+            rangeStart = start,
+            rangeEnd = end,
+        )
+        val plotHeight = geometry.bottom - geometry.top
+        assertEquals(plotHeight * 0.12f, geometry.bottom - geometry.stressPoints[0].y, 0.02f)
+        assertEquals(plotHeight * 0.4325f, geometry.bottom - geometry.stressPoints[1].y, 0.02f)
+    }
+
+    @Test
     fun `mixed stress series counts blue and orange bars`() {
         val values = List(38) { 12 } + List(10) { 40 }
         val (rest, stress) = countStressBarColors(values)
