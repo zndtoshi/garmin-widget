@@ -37,6 +37,13 @@ class ActivityHeartRatePointInternal(BaseModel):
     heart_rate: int
 
 
+class ActivitySpeedPointInternal(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    elapsed_seconds: int
+    speed_meters_per_second: float
+
+
 class LastActivityInternal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -55,6 +62,7 @@ class LastActivityInternal(BaseModel):
     anaerobic_training_effect: float | None = None
     training_load: float | None = None
     heart_rate_timeline: list[ActivityHeartRatePointInternal] | None = None
+    speed_timeline: list[ActivitySpeedPointInternal] | None = None
 
 
 class DailyMetrics(BaseModel):

@@ -30,9 +30,13 @@ class ActivityIconSignatureTest {
     fun health_panel_icons_are_distinct_with_content_descriptions() {
         val kinds = HealthPanelIcon.entries
         val plans = kinds.map { healthPanelIconDrawPlan(it) }
-        assertEquals(3, plans.toSet().size)
+        assertEquals(4, plans.toSet().size)
         assertNotEquals(healthPanelIconDrawPlan(HealthPanelIcon.SLEEP), healthPanelIconDrawPlan(HealthPanelIcon.HRV))
         assertNotEquals(healthPanelIconDrawPlan(HealthPanelIcon.HRV), healthPanelIconDrawPlan(HealthPanelIcon.TRAINING_READINESS))
+        assertNotEquals(
+            healthPanelIconDrawPlan(HealthPanelIcon.TRAINING_READINESS),
+            healthPanelIconDrawPlan(HealthPanelIcon.BODY_BATTERY),
+        )
         kinds.forEach { kind ->
             assertTrue(healthPanelIconContentDescription(kind).isNotBlank())
             val bmp = drawHealthPanelIconBitmap(kind, 48)

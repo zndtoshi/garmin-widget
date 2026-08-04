@@ -13,7 +13,6 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalSize
 import androidx.glance.action.clickable
-import androidx.glance.action.actionParametersOf
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
@@ -37,15 +36,18 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.zndtoshi.garminwidget.R
-import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
+import com.zndtoshi.garminwidget.data.LowerCardKind
+import com.zndtoshi.garminwidget.data.LowerCardState
 import com.zndtoshi.garminwidget.data.SettingsStore
+import com.zndtoshi.garminwidget.data.TimelinePoint
 import com.zndtoshi.garminwidget.data.WidgetResponse
 import com.zndtoshi.garminwidget.data.WidgetStore
-import com.zndtoshi.garminwidget.data.activityDismissalIdentity
-import com.zndtoshi.garminwidget.data.shouldShowActivity
+import com.zndtoshi.garminwidget.data.resolveVisibleLowerCard
+import java.time.Instant
+import java.time.ZoneId
 
 class GarminWidget : GlanceAppWidget() {
     override val stateDefinition = PreferencesGlanceStateDefinition
@@ -64,7 +66,7 @@ class GarminWidget : GlanceAppWidget() {
                 data = state.data,
                 status = resolveVisibleStatus(settings.isConfigured(), state.status, refreshRevision),
                 opacityPercent = settings.widgetOpacityPercent(),
-                dismissedActivityIdentity = store.dismissedActivityIdentity(),
+                lowerCard = state.lowerCard,
             )
         }
     }
@@ -80,7 +82,7 @@ private fun WidgetContent(
     data: WidgetResponse?,
     status: LocalStatus,
     opacityPercent: Int,
-    dismissedActivityIdentity: String?,
+    lowerCard: LowerCardState,
 ) {
     val spec = LayoutMetrics.fromSize(LocalSize.current)
     Column(
@@ -94,9 +96,7 @@ private fun WidgetContent(
         if (data == null) {
             EmptyState(status)
         } else {
-            Column(modifier = GlanceModifier.fillMaxWidth().clickable(actionRunCallback<OpenGarminAction>())) {
-                TwoRowLayout(data, spec, dismissedActivityIdentity)
-            }
+            TwoRowLayout(data, spec, lowerCard)
         }
     }
 }
@@ -142,10 +142,13 @@ private fun HeaderRow(status: LocalStatus) {
 private fun TwoRowLayout(
     data: WidgetResponse,
     spec: AdaptiveLayoutSpec,
-    dismissedActivityIdentity: String?,
+    lowerCard: LowerCardState,
 ) {
     Row(
-        modifier = GlanceModifier.fillMaxWidth().height(spec.healthRowDp.dp),
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .height(spec.healthRowDp.dp)
+            .clickable(actionRunCallback<OpenGarminAction>()),
         verticalAlignment = Alignment.Top,
     ) {
         EqualPanel(widthDp = spec.panelWidthDp.dp, heightDp = spec.healthRowDp.dp) {
@@ -161,16 +164,41 @@ private fun TwoRowLayout(
     if (spec.afterHealthSpacerDp > 0) {
         Spacer(GlanceModifier.height(spec.afterHealthSpacerDp.dp))
     }
-    val visibleActivity = data.lastActivity?.takeIf {
-        shouldShowActivity(it, dismissedActivityIdentity)
-    }
-    ActivityStrip(
-        activity = visibleActivity,
+    LowerCardHost(
+        data = data,
+        kind = resolveVisibleLowerCard(data, lowerCard),
         heightDp = spec.activityDp.dp,
         showHrChart = spec.showActivityHrChart,
         hrChartHeightDp = spec.activityHrChartHeightDp.dp,
         chartWidthDp = spec.activityChartContentWidthDp.dp,
     )
+}
+
+@Composable
+private fun LowerCardHost(
+    data: WidgetResponse,
+    kind: LowerCardKind,
+    heightDp: Dp,
+    showHrChart: Boolean,
+    hrChartHeightDp: Dp,
+    chartWidthDp: Dp,
+) {
+    when (kind) {
+        LowerCardKind.BODY_BATTERY -> BodyBatteryStrip(
+            data = data,
+            heightDp = heightDp,
+            chartHeightDp = hrChartHeightDp,
+            chartWidthDp = chartWidthDp,
+        )
+        LowerCardKind.ACTIVITY -> ActivityStrip(
+            activity = data.lastActivity,
+            heightDp = heightDp,
+            showHrChart = showHrChart,
+            hrChartHeightDp = hrChartHeightDp,
+            chartWidthDp = chartWidthDp,
+        )
+        LowerCardKind.NONE -> Spacer(GlanceModifier.fillMaxWidth().height(heightDp))
+    }
 }
 
 @Composable
@@ -395,19 +423,153 @@ private fun HrvGraphImage(
 
 @Composable
 private fun ActivityHrChartImage(
-    timeline: List<ActivityHeartRatePoint>,
+    timeline: List<com.zndtoshi.garminwidget.data.ActivityHeartRatePoint>,
+    speedTimeline: List<com.zndtoshi.garminwidget.data.ActivitySpeedPoint> = emptyList(),
     widthDp: Dp,
     heightDp: Dp,
     maxHeartRate: Int?,
 ) {
     if (heightDp.value < 8f) return
     val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
-    val bitmap = drawActivityHrChartBitmap(wPx, hPx, timeline, maxHeartRate) ?: return
+    val bitmap = drawActivityHrChartBitmap(wPx, hPx, timeline, maxHeartRate, speedTimeline) ?: return
     Image(
         provider = ImageProvider(bitmap),
-        contentDescription = "Activity heart rate chart",
+        contentDescription = activityChartContentDescription(timeline, speedTimeline),
         modifier = GlanceModifier.width(widthDp).height(heightDp),
     )
+}
+
+@Composable
+private fun BodyBatteryStrip(
+    data: WidgetResponse,
+    heightDp: Dp,
+    chartHeightDp: Dp,
+    chartWidthDp: Dp,
+) {
+    val zone = ZoneId.systemDefault()
+    val bodyBattery = appendCurrentBodyBatteryPoint(
+        points = filterTimelineForResponseDate(data.bodyBatteryTimeline, data.date, zone),
+        currentValue = data.bodyBattery,
+        refreshedAt = data.refreshedAt,
+        responseDate = data.date,
+        zoneId = zone,
+    )
+    val stress = filterTimelineForResponseDate(data.stressTimeline, data.date, zone)
+    val dayRange = timelineDayRange(data.date, zone)
+    val header = bodyBatteryHeaderPresentation(data.bodyBattery, showTitle = true)
+    Box(
+        modifier = GlanceModifier
+            .fillMaxWidth()
+            .height(heightDp)
+            .padding(horizontal = LayoutMetrics.ACTIVITY_CARD_OUTER_HORIZONTAL_PADDING_DP.dp),
+    ) {
+        Column(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(ImageProvider(R.drawable.activity_card_background))
+                .clickable(actionRunCallback<ToggleLowerCardAction>())
+                .padding(
+                    horizontal = LayoutMetrics.ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP.dp,
+                    vertical = LayoutMetrics.ACTIVITY_CARD_INNER_VERTICAL_PADDING_DP.dp,
+                ),
+        ) {
+            Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopStart) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        provider = ImageProvider(
+                            drawHealthPanelIconBitmap(
+                                HealthPanelIcon.BODY_BATTERY,
+                                LayoutMetrics.dpToRenderPx(14f),
+                            ),
+                        ),
+                        contentDescription = healthPanelIconContentDescription(HealthPanelIcon.BODY_BATTERY),
+                        modifier = GlanceModifier.width(12.dp).height(12.dp),
+                    )
+                    Spacer(GlanceModifier.width(4.dp))
+                    Text(
+                        text = header.title ?: "Body Battery",
+                        style = TextStyle(
+                            color = ColorProvider(Color(0xFF9FB5BB)),
+                            fontSize = 8.sp,
+                        ),
+                        maxLines = 1,
+                    )
+                    Spacer(GlanceModifier.width(6.dp))
+                    Text(
+                        text = header.trailingValue ?: "—",
+                        style = TextStyle(
+                            color = ColorProvider(Color.White),
+                            fontSize = HEALTH_TRAILING_VALUE_FONT_SP.sp,
+                            fontWeight = FontWeight.Bold,
+                        ),
+                        maxLines = 1,
+                    )
+                }
+                Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
+                    LowerCardDismissButton()
+                }
+            }
+            Spacer(GlanceModifier.height(LayoutMetrics.ACTIVITY_HEADER_CHART_GAP_DP.dp))
+            CombinedChartImage(
+                bodyBattery = bodyBattery,
+                stress = stress,
+                bodyBatteryValue = data.bodyBattery,
+                stressValue = data.stress,
+                widthDp = chartWidthDp,
+                heightDp = chartHeightDp,
+                rangeStart = dayRange?.first,
+                rangeEnd = dayRange?.second,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CombinedChartImage(
+    bodyBattery: List<TimelinePoint>,
+    stress: List<TimelinePoint>,
+    bodyBatteryValue: Int?,
+    stressValue: Int?,
+    widthDp: Dp,
+    heightDp: Dp,
+    rangeStart: Instant?,
+    rangeEnd: Instant?,
+) {
+    if (heightDp.value < 8f) return
+    val (wPx, hPx) = LayoutMetrics.chartRenderSize(widthDp.value, heightDp.value)
+    Image(
+        provider = ImageProvider(
+            drawCombinedChartBitmap(wPx, hPx, bodyBattery, stress, rangeStart, rangeEnd),
+        ),
+        contentDescription = chartContentDescription(
+            bodyBattery.size,
+            stress.size,
+            bodyBatteryValue,
+            stressValue,
+        ),
+        modifier = GlanceModifier.width(widthDp).height(heightDp),
+    )
+}
+
+@Composable
+private fun LowerCardDismissButton() {
+    Box(
+        modifier = GlanceModifier
+            .width(22.dp)
+            .height(18.dp)
+            .clickable(actionRunCallback<DismissLowerCardAction>()),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "×",
+            style = TextStyle(
+                color = ColorProvider(Color(0xFFD7DEE3)),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+            ),
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
@@ -433,6 +595,7 @@ private fun ActivityStrip(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(ImageProvider(R.drawable.activity_card_background))
+                .clickable(actionRunCallback<ToggleLowerCardAction>())
                 .padding(
                     horizontal = LayoutMetrics.ACTIVITY_CARD_INNER_HORIZONTAL_PADDING_DP.dp,
                     vertical = LayoutMetrics.ACTIVITY_CARD_INNER_VERTICAL_PADDING_DP.dp,
@@ -473,35 +636,17 @@ private fun ActivityStrip(
                     }
                 }
                 Box(modifier = GlanceModifier.fillMaxWidth(), contentAlignment = Alignment.TopEnd) {
-                    Box(
-                        modifier = GlanceModifier
-                            .width(22.dp)
-                            .height(18.dp)
-                            .clickable(
-                                actionRunCallback<DismissActivityAction>(
-                                    actionParametersOf(
-                                        DismissActivityIdentityKey to activityDismissalIdentity(activity),
-                                    ),
-                                ),
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "×",
-                            style = TextStyle(
-                                color = ColorProvider(Color(0xFFD7DEE3)),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                            ),
-                            maxLines = 1,
-                        )
-                    }
+                    LowerCardDismissButton()
                 }
             }
-            if (showHrChart && activity.heartRateTimeline.size >= 2) {
+            if (showHrChart && (
+                    activity.heartRateTimeline.size >= 2 || activity.speedTimeline.size >= 2
+                    )
+            ) {
                 Spacer(GlanceModifier.height(LayoutMetrics.ACTIVITY_HEADER_CHART_GAP_DP.dp))
                 ActivityHrChartImage(
                     timeline = activity.heartRateTimeline,
+                    speedTimeline = activity.speedTimeline,
                     widthDp = chartWidthDp,
                     heightDp = hrChartHeightDp,
                     maxHeartRate = activity.maxHeartRate,

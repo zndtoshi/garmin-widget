@@ -69,6 +69,87 @@ class StorePersistenceTest {
     }
 
     @Test
+    fun lower_card_morning_event_dismissal_and_next_day_persist() {
+        val store = WidgetStore(context)
+        val incompleteMorning = """
+            {"schemaVersion":1,"date":"2026-07-30","bodyBattery":90,
+             "sleepScore":null,"sleepDurationSeconds":null}
+        """.trimIndent()
+        val completedMorning = """
+            {"schemaVersion":1,"date":"2026-07-30","bodyBattery":90,
+             "sleepScore":82,"sleepDurationSeconds":21600}
+        """.trimIndent()
+        val sameMorningUpdated = """
+            {"schemaVersion":1,"date":"2026-07-30","bodyBattery":88,
+             "sleepScore":82,"sleepDurationSeconds":21600}
+        """.trimIndent()
+        val nextMorning = """
+            {"schemaVersion":1,"date":"2026-07-31","bodyBattery":93,
+             "sleepScore":85,"sleepDurationSeconds":22500}
+        """.trimIndent()
+
+        assertTrue(store.saveSuccessAndReconcile(incompleteMorning))
+        assertEquals(LowerCardKind.NONE, store.read().lowerCard.selected)
+
+        assertTrue(store.saveSuccessAndReconcile(completedMorning))
+        assertEquals(LowerCardKind.BODY_BATTERY, store.read().lowerCard.selected)
+
+        store.dismissVisibleLowerCard()
+        val dismissed = WidgetStore(context).read().lowerCard
+        assertEquals(LowerCardKind.NONE, dismissed.selected)
+        assertEquals("2026-07-30", dismissed.dismissedMorningIdentity)
+
+        assertTrue(store.saveSuccessAndReconcile(sameMorningUpdated))
+        assertEquals(
+            LowerCardKind.NONE,
+            resolveVisibleLowerCard(WidgetStore(context).read().data, WidgetStore(context).read().lowerCard),
+        )
+
+        assertTrue(store.saveSuccessAndReconcile(nextMorning))
+        assertEquals(LowerCardKind.BODY_BATTERY, WidgetStore(context).read().lowerCard.selected)
+    }
+
+    @Test
+    fun malformed_success_payload_preserves_cached_data_and_lower_card_state() {
+        val store = WidgetStore(context)
+        val valid = """
+            {"schemaVersion":1,"date":"2026-07-30","bodyBattery":88,
+             "sleepScore":82,"sleepDurationSeconds":21600}
+        """.trimIndent()
+        assertTrue(store.saveSuccessAndReconcile(valid))
+        val before = store.read()
+
+        assertFalse(store.saveSuccessAndReconcile("{not-json"))
+
+        val after = WidgetStore(context).read()
+        assertEquals(before.data, after.data)
+        assertEquals(before.lowerCard, after.lowerCard)
+        assertEquals(LocalStatus.READY, after.status)
+    }
+
+    @Test
+    fun legacy_activity_dismissal_migrates_once_and_survives_new_store_instance() {
+        val raw = """
+            {"schemaVersion":1,"lastActivity":{"name":"Morning Run","typeKey":"running",
+             "startedAt":"2026-07-29T17:34:35Z"}}
+        """.trimIndent()
+        val identity = "startedAt:2026-07-29T17:34:35Z"
+        context.getSharedPreferences(WidgetStore.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(WidgetStore.KEY_RAW_JSON, raw)
+            .putString(WidgetStore.KEY_STATUS, LocalStatus.READY.name)
+            .putString(WidgetStore.KEY_DISMISSED_ACTIVITY_IDENTITY, identity)
+            .commit()
+
+        val migrated = WidgetStore(context).read().lowerCard
+        assertEquals(LowerCardKind.NONE, migrated.selected)
+        assertEquals(identity, migrated.dismissedActivityIdentity)
+
+        val persisted = WidgetStore(context).read().lowerCard
+        assertEquals(migrated, persisted)
+    }
+
+    @Test
     fun dismissed_activity_stays_hidden_until_a_new_activity_arrives() {
         val first = LastActivity(
             name = "Morning Run",

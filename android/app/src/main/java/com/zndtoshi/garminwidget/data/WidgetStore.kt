@@ -9,19 +9,50 @@ class WidgetStore(context: Context) {
     data class State(
         val data: WidgetResponse?,
         val status: LocalStatus,
+        val lowerCard: LowerCardState = LowerCardState(),
     )
 
-    fun read(): State {
+    fun read(): State = synchronized(STATE_LOCK) {
         val statusName = prefs.getString(KEY_STATUS, null)
         val rawJson = prefs.getString(KEY_RAW_JSON, null)
-        return decodeState(statusName, rawJson)
+        val decoded = decodeState(statusName, rawJson)
+        decoded.copy(lowerCard = readLowerCardState(decoded.data))
     }
 
-    fun saveSuccess(rawJson: String) {
+    /**
+     * Atomically compare previous cache → incoming payload, persist JSON + lower-card state.
+     * Malformed payloads leave prior cache and dismissals untouched.
+     */
+    fun saveSuccessAndReconcile(rawJson: String): Boolean = synchronized(STATE_LOCK) {
+        val incoming = try {
+            WidgetResponseParser.parse(rawJson)
+        } catch (_: Exception) {
+            return@synchronized false
+        }
+        val previousRaw = prefs.getString(KEY_RAW_JSON, null)
+        val previous = previousRaw?.let {
+            try {
+                WidgetResponseParser.parse(it)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        val currentLower = readLowerCardState(previous)
+        val nextLower = reconcileLowerCardOnSuccess(previous, incoming, currentLower)
         prefs.edit()
             .putString(KEY_RAW_JSON, rawJson)
             .putString(KEY_STATUS, LocalStatus.READY.name)
+            .putString(KEY_LOWER_CARD_SELECTED, nextLower.selected.name)
+            .putString(KEY_DISMISSED_MORNING_IDENTITY, nextLower.dismissedMorningIdentity)
+            .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, nextLower.dismissedActivityIdentity)
+            .putBoolean(KEY_LOWER_CARD_MIGRATED, true)
             .commit()
+        true
+    }
+
+    /** @deprecated Prefer [saveSuccessAndReconcile] so lower-card events are detected. */
+    fun saveSuccess(rawJson: String) {
+        saveSuccessAndReconcile(rawJson)
     }
 
     fun saveFailure(status: LocalStatus) {
@@ -45,6 +76,8 @@ class WidgetStore(context: Context) {
             .apply()
     }
 
+    fun lowerCardState(): LowerCardState = read().lowerCard
+
     fun dismissedActivityIdentity(): String? =
         prefs.getString(KEY_DISMISSED_ACTIVITY_IDENTITY, null)
 
@@ -52,7 +85,50 @@ class WidgetStore(context: Context) {
         if (identity.isBlank()) return
         prefs.edit()
             .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, identity)
+            .putString(KEY_LOWER_CARD_SELECTED, LowerCardKind.NONE.name)
+            .putBoolean(KEY_LOWER_CARD_MIGRATED, true)
             .commit()
+    }
+
+    fun applyLowerCardState(state: LowerCardState) = synchronized(STATE_LOCK) {
+        prefs.edit()
+            .putString(KEY_LOWER_CARD_SELECTED, state.selected.name)
+            .putString(KEY_DISMISSED_MORNING_IDENTITY, state.dismissedMorningIdentity)
+            .putString(KEY_DISMISSED_ACTIVITY_IDENTITY, state.dismissedActivityIdentity)
+            .putBoolean(KEY_LOWER_CARD_MIGRATED, true)
+            .commit()
+    }
+
+    fun toggleVisibleLowerCard(): LowerCardState = synchronized(STATE_LOCK) {
+        val current = read()
+        val next = toggleLowerCard(current.data, current.lowerCard)
+        applyLowerCardState(next)
+        next
+    }
+
+    fun dismissVisibleLowerCard(): LowerCardState = synchronized(STATE_LOCK) {
+        val current = read()
+        val next = dismissLowerCard(current.data, current.lowerCard)
+        applyLowerCardState(next)
+        next
+    }
+
+    private fun readLowerCardState(cached: WidgetResponse?): LowerCardState {
+        val migrated = prefs.getBoolean(KEY_LOWER_CARD_MIGRATED, false)
+        val dismissedActivity = prefs.getString(KEY_DISMISSED_ACTIVITY_IDENTITY, null)
+        if (!migrated) {
+            val baseline = migrateLowerCardState(cached, dismissedActivity)
+            applyLowerCardState(baseline)
+            return baseline
+        }
+        val selected = prefs.getString(KEY_LOWER_CARD_SELECTED, null)?.let {
+            runCatching { LowerCardKind.valueOf(it) }.getOrNull()
+        } ?: LowerCardKind.NONE
+        return LowerCardState(
+            selected = selected,
+            dismissedMorningIdentity = prefs.getString(KEY_DISMISSED_MORNING_IDENTITY, null),
+            dismissedActivityIdentity = dismissedActivity,
+        )
     }
 
     companion object {
@@ -60,6 +136,12 @@ class WidgetStore(context: Context) {
         const val KEY_RAW_JSON = "raw_json"
         const val KEY_STATUS = "status"
         const val KEY_DISMISSED_ACTIVITY_IDENTITY = "dismissed_activity_identity"
+        const val KEY_DISMISSED_MORNING_IDENTITY = "dismissed_morning_identity"
+        const val KEY_LOWER_CARD_SELECTED = "lower_card_selected"
+        const val KEY_LOWER_CARD_MIGRATED = "lower_card_migrated"
+
+        /** Shared across store instances used by workers and Glance actions in this process. */
+        private val STATE_LOCK = Any()
 
         internal fun decodeState(statusName: String?, rawJson: String?): State {
             val status = try {

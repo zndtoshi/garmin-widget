@@ -37,7 +37,7 @@ Implemented now:
   - `sleepStages` (deep/light/REM/awake durations, negative values filtered)
   - `hrvTrend` (rolling 7-day, oldest-first, bounded to 7 entries max; initial backfill then same-day reuse)
   - `bodyBatteryTimeline` and `stressTimeline` (intraday points, sorted/deduped, values 0–100, max 48 after downsampling)
-  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled). Optional private-safe `heartRateTimeline` (max 48) may be present after a transient activity-details fetch; activity IDs/GPS/raw details are never exposed.
+  - `lastActivity` (name, type, duration, distance, HR, etc.; `startTimeGMT` is the trusted UTC source, including naive GMT strings, while local-only timestamps are never mislabeled). Optional private-safe `heartRateTimeline` / `speedTimeline` (max 48 each) may be present after a transient activity-details fetch; activity IDs/GPS/raw details are never exposed.
   - All new fields are nullable and backward-compatible with `schemaVersion=1`
 - Atomic latest-widget snapshot persistence and refresh coordination
 - Render-oriented container entrypoint (`PORT`, one worker; proxy headers disabled)
@@ -187,7 +187,7 @@ Version-one public JSON uses camelCase and explicit nullability for metrics that
 | `stress` | number \| null | Stress value |
 | `stressTimeline` | array \| null | Intraday points (max 48): `{timestamp, value}` |
 | `trainingReadiness` | number \| null | Training readiness |
-| `lastActivity` | object \| null | Most recent activity summary. Optional additive `heartRateTimeline` (max 48): `{elapsedSeconds, heartRate}` from a transient details fetch; never includes activity ID/GPS/raw details. |
+| `lastActivity` | object \| null | Most recent activity summary. Optional additive `heartRateTimeline` / `speedTimeline` (max 48 each): `{elapsedSeconds, heartRate}` and `{elapsedSeconds, speedMetersPerSecond}` from one transient details fetch; never includes activity ID/GPS/raw details. |
 | `garminSyncAt` | string \| null | ISO-8601 UTC timestamp |
 | `refreshedAt` | string \| null | ISO-8601 UTC timestamp |
 | `stale` | boolean | Indicates stale cached data |

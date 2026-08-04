@@ -18,6 +18,7 @@ from app.garmin.errors import (
 )
 from app.models.domain import (
     ActivityHeartRatePointInternal,
+    ActivitySpeedPointInternal,
     DailyMetrics,
     HrvTrendPointInternal,
     LastActivityInternal,
@@ -29,8 +30,13 @@ EndpointStatus = Literal["ok", "unavailable"]
 
 ACTIVITY_DETAILS_MAX_CHART = 2000
 ACTIVITY_HR_TIMELINE_MAX_POINTS = 48
+ACTIVITY_SPEED_TIMELINE_MAX_POINTS = 48
 ACTIVITY_HR_MIN = 20
 ACTIVITY_HR_MAX = 250
+ACTIVITY_SPEED_MIN_MPS = 0.0
+ACTIVITY_SPEED_MAX_MPS = 150.0
+# Ground-speed only — never pace, cadence, or vertical speed.
+ACTIVITY_SPEED_METRIC_KEYS = ("directSpeed", "directGroundSpeed")
 
 
 class GarminMetricsClient(Protocol):
@@ -125,10 +131,14 @@ class GarminMetricsAdapter:
             )
             outcomes.append(detail_status)
             hr_timeline = _extract_activity_hr_timeline(details)
+            speed_timeline = _extract_activity_speed_timeline(details)
+            updates: dict[str, Any] = {}
             if hr_timeline:
-                last_activity = last_activity.model_copy(
-                    update={"heart_rate_timeline": hr_timeline}
-                )
+                updates["heart_rate_timeline"] = hr_timeline
+            if speed_timeline:
+                updates["speed_timeline"] = speed_timeline
+            if updates:
+                last_activity = last_activity.model_copy(update=updates)
         garmin_sync_at = _extract_garmin_sync_at(device)
 
         return DailyMetrics(
@@ -452,6 +462,41 @@ def _extract_activity_hr_timeline(
     return _sort_dedup_downsample_hr(points, ACTIVITY_HR_TIMELINE_MAX_POINTS)
 
 
+def _extract_activity_speed_timeline(
+    details: Any,
+) -> list[ActivitySpeedPointInternal] | None:
+    if not isinstance(details, dict):
+        return None
+    try:
+        from garminconnect.activity_details import parse_activity_detail_metrics
+    except Exception:
+        return None
+    try:
+        samples = parse_activity_detail_metrics(details)
+    except Exception:
+        return None
+    if not isinstance(samples, list) or not samples:
+        return None
+
+    points: list[ActivitySpeedPointInternal] = []
+    for sample in samples:
+        if not isinstance(sample, dict):
+            continue
+        elapsed = _activity_elapsed_seconds(sample)
+        speed = _activity_speed_mps(sample)
+        if elapsed is None or speed is None:
+            continue
+        points.append(
+            ActivitySpeedPointInternal(
+                elapsed_seconds=elapsed,
+                speed_meters_per_second=speed,
+            )
+        )
+    if not points:
+        return None
+    return _sort_dedup_downsample_speed(points, ACTIVITY_SPEED_TIMELINE_MAX_POINTS)
+
+
 def _activity_elapsed_seconds(sample: dict[str, Any]) -> int | None:
     for key in ("sumElapsedDuration", "sumDuration", "sumMovingDuration"):
         value = _as_int(sample.get(key))
@@ -473,6 +518,22 @@ def _activity_heart_rate(sample: dict[str, Any]) -> int | None:
             rounded = int(round(raw))
             if ACTIVITY_HR_MIN <= rounded <= ACTIVITY_HR_MAX:
                 return rounded
+    return None
+
+
+def _activity_speed_mps(sample: dict[str, Any]) -> float | None:
+    for key in ACTIVITY_SPEED_METRIC_KEYS:
+        if key not in sample:
+            continue
+        raw = sample.get(key)
+        if isinstance(raw, bool) or raw is None:
+            continue
+        if isinstance(raw, (int, float)):
+            value = float(raw)
+            if not math.isfinite(value):
+                continue
+            if ACTIVITY_SPEED_MIN_MPS <= value <= ACTIVITY_SPEED_MAX_MPS:
+                return value
     return None
 
 
@@ -503,6 +564,62 @@ def _sort_dedup_downsample_hr(
         result.append(middle[idx])
     result.append(last)
     return result
+
+
+def _sort_dedup_downsample_speed(
+    points: list[ActivitySpeedPointInternal],
+    max_points: int,
+) -> list[ActivitySpeedPointInternal]:
+    # Prefer higher speed at equal elapsed so brief spikes survive dedupe.
+    ordered = sorted(
+        points,
+        key=lambda p: (p.elapsed_seconds, -p.speed_meters_per_second),
+    )
+    deduped: list[ActivitySpeedPointInternal] = []
+    seen: set[int] = set()
+    for point in ordered:
+        if point.elapsed_seconds in seen:
+            continue
+        seen.add(point.elapsed_seconds)
+        deduped.append(point)
+    deduped.sort(key=lambda p: p.elapsed_seconds)
+    if len(deduped) <= max_points:
+        return deduped
+
+    n = len(deduped)
+    max_i = max(range(n), key=lambda i: deduped[i].speed_meters_per_second)
+    mandatory = {0, n - 1, max_i}
+
+    extrema: list[tuple[float, int]] = []
+    for i in range(1, n - 1):
+        v = deduped[i].speed_meters_per_second
+        prev = deduped[i - 1].speed_meters_per_second
+        nxt = deduped[i + 1].speed_meters_per_second
+        is_peak = (v >= prev and v > nxt) or (v > prev and v >= nxt)
+        is_valley = (v <= prev and v < nxt) or (v < prev and v <= nxt)
+        if is_peak or is_valley:
+            prominence = abs(v - prev) + abs(v - nxt)
+            extrema.append((prominence, i))
+
+    keep = set(mandatory)
+    for _, idx in sorted(extrema, key=lambda item: (-item[0], item[1])):
+        if len(keep) >= max_points:
+            break
+        keep.add(idx)
+
+    if len(keep) < max_points:
+        remaining = [i for i in range(n) if i not in keep]
+        need = max_points - len(keep)
+        if remaining and need > 0:
+            if need >= len(remaining):
+                keep.update(remaining)
+            else:
+                step = (len(remaining) - 1) / (need - 1) if need > 1 else 0
+                for i in range(need):
+                    pick = int(i * step) if need > 1 else 0
+                    keep.add(remaining[pick])
+
+    return [deduped[i] for i in sorted(keep)[:max_points]]
 
 
 def _as_gmt_datetime(value: Any) -> datetime | None:

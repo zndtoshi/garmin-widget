@@ -1,6 +1,7 @@
 package com.zndtoshi.garminwidget.widget
 
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
+import com.zndtoshi.garminwidget.data.ActivitySpeedPoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.SleepStages
@@ -542,5 +543,56 @@ class WidgetGraphicsTest {
         assertTrue(missing.strokePx >= 8f)
         assertTrue(missing.markerRadiusPx > 0f)
         assertTrue(missing.markerRadiusPx <= missing.strokePx * 0.5f + 0.01f)
+    }
+
+    @Test
+    fun `activity chart shares x domain and keeps speed in lower half`() {
+        val hr = listOf(
+            ActivityHeartRatePoint(0, 120),
+            ActivityHeartRatePoint(60, 150),
+            ActivityHeartRatePoint(120, 140),
+        )
+        val speed = listOf(
+            ActivitySpeedPoint(0, 0.0),
+            ActivitySpeedPoint(30, 10.0),
+            ActivitySpeedPoint(90, 5.0),
+        )
+        val geo = buildActivityHrChartGeometry(200, 80, hr, speed)
+        assertTrue(geo.hasHrSeries)
+        assertTrue(geo.hasSpeedSeries)
+        assertEquals(0, geo.minElapsedSeconds)
+        assertEquals(120, geo.maxElapsedSeconds)
+        val midY = geo.top + (geo.bottom - geo.top) * 0.5f
+        assertTrue(geo.speedPoints.all { it.y in midY..geo.bottom + 0.01f })
+        val maxSpeedPoint = geo.speedPoints.maxBy { it.value }
+        assertEquals(midY, maxSpeedPoint.y, 0.5f)
+        assertEquals(
+            listOf(
+                ActivityChartLayer.SPEED_FILL,
+                ActivityChartLayer.SPEED_LINE,
+                ActivityChartLayer.HR_DIFFUSION,
+                ActivityChartLayer.HR_LINE,
+                ActivityChartLayer.HR_MARKER,
+            ),
+            activityChartDrawOrder(),
+        )
+        assertEquals(0xFF42A5F5.toInt(), ACTIVITY_SPEED_LINE)
+        assertTrue(activitySpeedStrokeWidthPx(2.5f) <= 2.5f)
+        assertFalse(
+            buildActivityHrChartGeometry(
+                100,
+                40,
+                emptyList(),
+                listOf(ActivitySpeedPoint(0, 5.0)),
+            ).hasRenderableSeries,
+        )
+        assertTrue(
+            buildActivityHrChartGeometry(
+                100,
+                40,
+                emptyList(),
+                listOf(ActivitySpeedPoint(0, 1.0), ActivitySpeedPoint(30, 2.0)),
+            ).hasSpeedSeries,
+        )
     }
 }

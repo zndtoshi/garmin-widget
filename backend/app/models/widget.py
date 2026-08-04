@@ -70,6 +70,15 @@ class ActivityHeartRatePoint(BaseModel):
     heart_rate: int = Field(ge=20, le=250, alias="heartRate")
 
 
+class ActivitySpeedPoint(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    elapsed_seconds: int = Field(ge=0, alias="elapsedSeconds")
+    speed_meters_per_second: float = Field(
+        ge=0.0, le=150.0, alias="speedMetersPerSecond"
+    )
+
+
 class LastActivity(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -99,6 +108,9 @@ class LastActivity(BaseModel):
     training_load: float | None = Field(default=None, alias="trainingLoad")
     heart_rate_timeline: list[ActivityHeartRatePoint] | None = Field(
         default=None, alias="heartRateTimeline", max_length=48
+    )
+    speed_timeline: list[ActivitySpeedPoint] | None = Field(
+        default=None, alias="speedTimeline", max_length=48
     )
 
     @field_validator("started_at", mode="after")

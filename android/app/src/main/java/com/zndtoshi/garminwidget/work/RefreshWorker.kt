@@ -34,7 +34,9 @@ class RefreshWorker(
             val rawJson = withContext(Dispatchers.IO) {
                 WidgetApiClient().refresh(settings.backendUrl(), token)
             }
-            store.saveSuccess(rawJson)
+            check(store.saveSuccessAndReconcile(rawJson)) {
+                "Widget refresh returned a malformed response"
+            }
             bumpWidgetRefreshRevision(applicationContext)
             Result.success()
         } catch (error: WidgetAuthException) {

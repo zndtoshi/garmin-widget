@@ -9,6 +9,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import com.zndtoshi.garminwidget.data.ActivityHeartRatePoint
+import com.zndtoshi.garminwidget.data.ActivitySpeedPoint
 import com.zndtoshi.garminwidget.data.HrvTrendPoint
 import com.zndtoshi.garminwidget.data.LastActivity
 import com.zndtoshi.garminwidget.data.LocalStatus
@@ -1038,18 +1039,20 @@ internal fun activityIconPixelSignature(typeKey: String?, sizePx: Int = 48): Lon
 }
 
 /** Stable draw-plan tags proving health panel icons are geometrically distinct. */
-internal enum class HealthPanelIcon { SLEEP, HRV, TRAINING_READINESS }
+internal enum class HealthPanelIcon { SLEEP, HRV, TRAINING_READINESS, BODY_BATTERY }
 
 internal fun healthPanelIconDrawPlan(kind: HealthPanelIcon): List<String> = when (kind) {
     HealthPanelIcon.SLEEP -> listOf("badge:indigo", "crescent-moon", "star-dot")
     HealthPanelIcon.HRV -> listOf("badge:green", "heart-outline", "pulse-notch")
     HealthPanelIcon.TRAINING_READINESS -> listOf("badge:amber", "runner-torso", "stride")
+    HealthPanelIcon.BODY_BATTERY -> listOf("badge:cyan", "battery-body", "bolt")
 }
 
 internal fun healthPanelIconContentDescription(kind: HealthPanelIcon): String = when (kind) {
     HealthPanelIcon.SLEEP -> "Sleep panel icon"
     HealthPanelIcon.HRV -> "HRV panel icon"
     HealthPanelIcon.TRAINING_READINESS -> "Training Readiness panel icon"
+    HealthPanelIcon.BODY_BATTERY -> "Body Battery panel icon"
 }
 
 internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitmap {
@@ -1060,6 +1063,7 @@ internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitm
         HealthPanelIcon.SLEEP -> 0xFF5C6BC0.toInt()
         HealthPanelIcon.HRV -> 0xFF4CAF50.toInt()
         HealthPanelIcon.TRAINING_READINESS -> 0xFFF6C344.toInt()
+        HealthPanelIcon.BODY_BATTERY -> 0xFF4DD0E1.toInt()
     }
     val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = badge
@@ -1095,13 +1099,25 @@ internal fun drawHealthPanelIconBitmap(kind: HealthPanelIcon, sizePx: Int): Bitm
             canvas.drawLine(safe * 0.58f, safe * 0.58f, safe * 0.68f, safe * 0.5f, ink)
         }
         HealthPanelIcon.TRAINING_READINESS -> {
-            // Compact runner silhouette: head + torso stride.
             canvas.drawCircle(safe * 0.58f, safe * 0.28f, safe * 0.09f, solid)
             canvas.drawLine(safe * 0.52f, safe * 0.38f, safe * 0.42f, safe * 0.58f, ink)
             canvas.drawLine(safe * 0.42f, safe * 0.58f, safe * 0.34f, safe * 0.78f, ink)
             canvas.drawLine(safe * 0.42f, safe * 0.58f, safe * 0.58f, safe * 0.78f, ink)
             canvas.drawLine(safe * 0.5f, safe * 0.44f, safe * 0.68f, safe * 0.36f, ink)
             canvas.drawLine(safe * 0.5f, safe * 0.44f, safe * 0.28f, safe * 0.52f, ink)
+        }
+        HealthPanelIcon.BODY_BATTERY -> {
+            canvas.drawRoundRect(RectF(safe * 0.22f, safe * 0.32f, safe * 0.72f, safe * 0.68f), safe * 0.08f, safe * 0.08f, ink)
+            canvas.drawRect(safe * 0.72f, safe * 0.42f, safe * 0.8f, safe * 0.58f, solid)
+            val bolt = Path()
+            bolt.moveTo(safe * 0.5f, safe * 0.34f)
+            bolt.lineTo(safe * 0.4f, safe * 0.52f)
+            bolt.lineTo(safe * 0.52f, safe * 0.52f)
+            bolt.lineTo(safe * 0.46f, safe * 0.68f)
+            bolt.lineTo(safe * 0.62f, safe * 0.46f)
+            bolt.lineTo(safe * 0.5f, safe * 0.46f)
+            bolt.close()
+            canvas.drawPath(bolt, solid)
         }
     }
     return bmp
@@ -1167,14 +1183,19 @@ internal data class ActivityHrChartGeometry(
     val maxHr: Int,
     val minElapsedSeconds: Int,
     val maxElapsedSeconds: Int,
+    val speedPoints: List<ChartPoint> = emptyList(),
+    val maxSpeedMps: Double = 0.0,
 ) {
-    val hasRenderableSeries: Boolean get() = points.size >= 2
+    val hasHrSeries: Boolean get() = points.size >= 2
+    val hasSpeedSeries: Boolean get() = speedPoints.size >= 2
+    val hasRenderableSeries: Boolean get() = hasHrSeries || hasSpeedSeries
 }
 
 internal fun buildActivityHrChartGeometry(
     widthPx: Int,
     heightPx: Int,
     timeline: List<ActivityHeartRatePoint>,
+    speedTimeline: List<ActivitySpeedPoint> = emptyList(),
 ): ActivityHrChartGeometry {
     val w = max(1, widthPx)
     val h = max(1, heightPx)
@@ -1182,45 +1203,111 @@ internal fun buildActivityHrChartGeometry(
     val top = 4f
     val right = (w - 4).toFloat().coerceAtLeast(left + 1f)
     val bottom = (h - 15).toFloat().coerceAtLeast(top + 1f)
-    val ordered = timeline
+    val orderedHr = timeline
         .filter { it.elapsedSeconds >= 0 && it.heartRate in 20..250 }
         .sortedBy { it.elapsedSeconds }
         .distinctBy { it.elapsedSeconds }
         .take(48)
-    if (ordered.isEmpty()) {
-        return ActivityHrChartGeometry(w, h, left, top, right, bottom, emptyList(), null, 20, 250, 0, 0)
+    val orderedSpeed = speedTimeline
+        .filter {
+            it.elapsedSeconds >= 0 &&
+                it.speedMetersPerSecond.isFinite() &&
+                it.speedMetersPerSecond in 0.0..150.0
+        }
+        .sortedWith(
+            compareBy<ActivitySpeedPoint> { it.elapsedSeconds }
+                .thenByDescending { it.speedMetersPerSecond },
+        )
+        .distinctBy { it.elapsedSeconds }
+        .take(48)
+    if (orderedHr.isEmpty() && orderedSpeed.size < 2) {
+        return ActivityHrChartGeometry(
+            w, h, left, top, right, bottom,
+            emptyList(), null, 20, 250, 0, 0,
+        )
     }
-    val minElapsed = ordered.first().elapsedSeconds
-    val maxElapsed = ordered.last().elapsedSeconds
+    val minElapsed = listOfNotNull(
+        orderedHr.firstOrNull()?.elapsedSeconds,
+        orderedSpeed.firstOrNull()?.elapsedSeconds,
+    ).minOrNull() ?: 0
+    val maxElapsed = listOfNotNull(
+        orderedHr.lastOrNull()?.elapsedSeconds,
+        orderedSpeed.lastOrNull()?.elapsedSeconds,
+    ).maxOrNull() ?: minElapsed
     val span = (maxElapsed - minElapsed).coerceAtLeast(1)
-    val dataMin = ordered.minOf { it.heartRate }
-    val dataMax = ordered.maxOf { it.heartRate }
-    val pad = max(4, ((dataMax - dataMin) * 0.12f).toInt())
-    val minHr = (dataMin - pad).coerceAtLeast(20)
-    val maxHr = (dataMax + pad).coerceAtMost(250).coerceAtLeast(minHr + 1)
-    val range = (maxHr - minHr).toFloat()
 
     fun xOf(elapsed: Int): Float {
         val relative = (elapsed - minElapsed).toFloat() / span.toFloat()
         return left + relative * (right - left)
     }
 
-    fun yOf(hr: Int): Float {
+    val dataMin = orderedHr.minOfOrNull { it.heartRate } ?: 20
+    val dataMax = orderedHr.maxOfOrNull { it.heartRate } ?: 250
+    val pad = max(4, ((dataMax - dataMin) * 0.12f).toInt())
+    val minHr = (dataMin - pad).coerceAtLeast(20)
+    val maxHr = (dataMax + pad).coerceAtMost(250).coerceAtLeast(minHr + 1)
+    val range = (maxHr - minHr).toFloat()
+
+    fun yOfHr(hr: Int): Float {
         val clamped = hr.coerceIn(minHr, maxHr)
         return bottom - ((clamped - minHr) / range) * (bottom - top)
     }
 
-    val points = ordered.map { ChartPoint(xOf(it.elapsedSeconds), yOf(it.heartRate), it.heartRate) }
+    val points = orderedHr.map { ChartPoint(xOf(it.elapsedSeconds), yOfHr(it.heartRate), it.heartRate) }
     val maxPoint = points.maxByOrNull { it.value }
-    return ActivityHrChartGeometry(w, h, left, top, right, bottom, points, maxPoint, minHr, maxHr, minElapsed, maxElapsed)
+
+    val maxSpeed = orderedSpeed.maxOfOrNull { it.speedMetersPerSecond } ?: 0.0
+    val plotHeight = bottom - top
+    val speedCeilingY = bottom - 0.50f * plotHeight
+    val speedPoints =
+        if (orderedSpeed.size >= 2 && maxSpeed > 0.0) {
+            orderedSpeed.map { point ->
+                val t = (point.speedMetersPerSecond / maxSpeed).toFloat().coerceIn(0f, 1f)
+                val y = (bottom - t * (bottom - speedCeilingY)).coerceIn(speedCeilingY, bottom)
+                ChartPoint(xOf(point.elapsedSeconds), y, (point.speedMetersPerSecond * 100).roundToInt())
+            }
+        } else {
+            emptyList()
+        }
+
+    return ActivityHrChartGeometry(
+        w, h, left, top, right, bottom,
+        points, maxPoint, minHr, maxHr, minElapsed, maxElapsed,
+        speedPoints = speedPoints,
+        maxSpeedMps = maxSpeed,
+    )
 }
 
 internal val ACTIVITY_HR_LINE_NORMAL = 0xFFC8D0D6.toInt() // #C8D0D6 light cool grey
 internal val ACTIVITY_HR_DIFFUSION_NORMAL = 0xFF52616B.toInt() // #52616B dark slate-blue
 internal val ACTIVITY_HR_LINE_PEAK = 0xFFF4514F.toInt() // #F4514F coral red
 internal val ACTIVITY_HR_DIFFUSION_PEAK = ACTIVITY_HR_LINE_PEAK
+internal val ACTIVITY_SPEED_LINE = 0xFF42A5F5.toInt() // #42A5F5 Garmin blue
+internal val ACTIVITY_SPEED_FILL = 0xFF42A5F5.toInt()
 
 internal const val ACTIVITY_HR_PEAK_RATIO = 0.95f
+internal const val ACTIVITY_SPEED_HEIGHT_FRACTION = 0.50f
+
+internal enum class ActivityChartLayer {
+    SPEED_FILL,
+    SPEED_LINE,
+    HR_DIFFUSION,
+    HR_LINE,
+    HR_MARKER,
+}
+
+internal fun activityChartDrawOrder(): List<ActivityChartLayer> = listOf(
+    ActivityChartLayer.SPEED_FILL,
+    ActivityChartLayer.SPEED_LINE,
+    ActivityChartLayer.HR_DIFFUSION,
+    ActivityChartLayer.HR_LINE,
+    ActivityChartLayer.HR_MARKER,
+)
+
+internal fun activitySpeedStrokeWidthPx(hrStrokePx: Float): Float =
+    (hrStrokePx * 0.85f).coerceAtMost(hrStrokePx)
+
+internal fun activitySpeedFillStartAlpha(): Int = 0x55
 
 /** Valid activity max HR, else max of timeline samples, else a safe default. */
 internal fun resolveActivityHrCeiling(
@@ -1376,8 +1463,9 @@ internal fun drawActivityHrChartBitmap(
     heightPx: Int,
     timeline: List<ActivityHeartRatePoint>,
     maxHeartRate: Int? = null,
+    speedTimeline: List<ActivitySpeedPoint> = emptyList(),
 ): Bitmap? {
-    val geo = buildActivityHrChartGeometry(widthPx, heightPx, timeline)
+    val geo = buildActivityHrChartGeometry(widthPx, heightPx, timeline, speedTimeline)
     if (!geo.hasRenderableSeries) return null
     val ceiling = resolveActivityHrCeiling(maxHeartRate, timeline)
     val bmp = Bitmap.createBitmap(geo.widthPx, geo.heightPx, Bitmap.Config.ARGB_8888)
@@ -1391,12 +1479,19 @@ internal fun drawActivityHrChartBitmap(
         color = Color.parseColor("#C5D0D8")
         textSize = 10f
     }
-    val midHr = (geo.minHr + geo.maxHr) / 2
-    listOf(geo.maxHr, midHr, geo.minHr).forEach { level ->
-        val y = geo.bottom - ((level - geo.minHr).toFloat() / (geo.maxHr - geo.minHr)) * (geo.bottom - geo.top)
-        canvas.drawLine(geo.left, y, geo.right, y, gridPaint)
-        labelPaint.textAlign = Paint.Align.RIGHT
-        canvas.drawText(level.toString(), geo.left - 4f, y + 4f, labelPaint)
+    if (geo.hasHrSeries) {
+        val midHr = (geo.minHr + geo.maxHr) / 2
+        listOf(geo.maxHr, midHr, geo.minHr).forEach { level ->
+            val y = geo.bottom - ((level - geo.minHr).toFloat() / (geo.maxHr - geo.minHr)) * (geo.bottom - geo.top)
+            canvas.drawLine(geo.left, y, geo.right, y, gridPaint)
+            labelPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText(level.toString(), geo.left - 4f, y + 4f, labelPaint)
+        }
+    } else {
+        listOf(0f, 0.5f, 1f).forEach { fraction ->
+            val y = geo.top + (geo.bottom - geo.top) * fraction
+            canvas.drawLine(geo.left, y, geo.right, y, gridPaint)
+        }
     }
     listOf(0f, 0.5f, 1f).forEach { fraction ->
         val x = geo.left + (geo.right - geo.left) * fraction
@@ -1407,77 +1502,120 @@ internal fun drawActivityHrChartBitmap(
     }
 
     val plotHeight = geo.bottom - geo.top
-    val normalDepth = activityHrNormalDiffusionDepthPx(plotHeight)
-    val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
-    val slate = activityHrNormalDiffusionColorArgb()
-    val peakFill = activityHrPeakDiffusionColorArgb()
+    val hrStroke = activityHrStrokeWidthPx(geo.heightPx)
     canvas.save()
     canvas.clipRect(geo.left, geo.top, geo.right, geo.bottom)
-    for (i in 0 until geo.points.lastIndex) {
-        val a = geo.points[i]
-        val b = geo.points[i + 1]
-        val span = abs(b.x - a.x)
-        val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
-        for (s in 0 until steps) {
-            val t0 = s.toFloat() / steps.toFloat()
-            val t1 = (s + 1).toFloat() / steps.toFloat()
-            val x0 = a.x + (b.x - a.x) * t0
-            val x1 = a.x + (b.x - a.x) * t1
-            val y0 = a.y + (b.y - a.y) * t0
-            val y1 = a.y + (b.y - a.y) * t1
-            drawActivityHrDiffusionStrip(
-                canvas,
-                x0,
-                y0,
-                x1,
-                y1,
-                slate,
-                slate,
-                normalDepth,
+
+    if (geo.hasSpeedSeries) {
+        val speedFill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+        for (i in 0 until geo.speedPoints.lastIndex) {
+            val a = geo.speedPoints[i]
+            val b = geo.speedPoints[i + 1]
+            val path = Path().apply {
+                moveTo(a.x, a.y)
+                lineTo(b.x, b.y)
+                lineTo(b.x, geo.bottom)
+                lineTo(a.x, geo.bottom)
+                close()
+            }
+            speedFill.shader = LinearGradient(
+                a.x,
+                min(a.y, b.y),
+                a.x,
                 geo.bottom,
-                activityHrNormalDiffusionStartAlpha(),
+                argbWithAlpha(ACTIVITY_SPEED_FILL, activitySpeedFillStartAlpha()),
+                argbWithAlpha(ACTIVITY_SPEED_FILL, 0),
+                Shader.TileMode.CLAMP,
             )
-            val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
-            if (activityHrPeakDiffusionSelected(midpointHr, ceiling)) {
+            canvas.drawPath(path, speedFill)
+        }
+        val speedStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = ACTIVITY_SPEED_LINE
+            style = Paint.Style.STROKE
+            strokeWidth = activitySpeedStrokeWidthPx(hrStroke)
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        for (i in 0 until geo.speedPoints.lastIndex) {
+            val a = geo.speedPoints[i]
+            val b = geo.speedPoints[i + 1]
+            canvas.drawLine(a.x, a.y, b.x, b.y, speedStroke)
+        }
+    }
+
+    if (geo.hasHrSeries) {
+        val normalDepth = activityHrNormalDiffusionDepthPx(plotHeight)
+        val peakDepth = activityHrPeakDiffusionDepthPx(plotHeight)
+        val slate = activityHrNormalDiffusionColorArgb()
+        val peakFill = activityHrPeakDiffusionColorArgb()
+        for (i in 0 until geo.points.lastIndex) {
+            val a = geo.points[i]
+            val b = geo.points[i + 1]
+            val span = abs(b.x - a.x)
+            val steps = max(1, (span / 6f).roundToInt().coerceIn(1, 10))
+            for (s in 0 until steps) {
+                val t0 = s.toFloat() / steps.toFloat()
+                val t1 = (s + 1).toFloat() / steps.toFloat()
+                val x0 = a.x + (b.x - a.x) * t0
+                val x1 = a.x + (b.x - a.x) * t1
+                val y0 = a.y + (b.y - a.y) * t0
+                val y1 = a.y + (b.y - a.y) * t1
                 drawActivityHrDiffusionStrip(
                     canvas,
                     x0,
                     y0,
                     x1,
                     y1,
-                    peakFill,
-                    peakFill,
-                    peakDepth,
+                    slate,
+                    slate,
+                    normalDepth,
                     geo.bottom,
-                    activityHrPeakDiffusionStartAlpha(),
+                    activityHrNormalDiffusionStartAlpha(),
                 )
+                val midpointHr = a.value + (b.value - a.value) * ((t0 + t1) * 0.5f)
+                if (activityHrPeakDiffusionSelected(midpointHr, ceiling)) {
+                    drawActivityHrDiffusionStrip(
+                        canvas,
+                        x0,
+                        y0,
+                        x1,
+                        y1,
+                        peakFill,
+                        peakFill,
+                        peakDepth,
+                        geo.bottom,
+                        activityHrPeakDiffusionStartAlpha(),
+                    )
+                }
             }
         }
-    }
-
-    val stroke = activityHrStrokeWidthPx(geo.heightPx)
-    for (i in 0 until geo.points.lastIndex) {
-        val a = geo.points[i]
-        val b = geo.points[i + 1]
-        val c0 = activityHrLineColorArgb(a.value, ceiling)
-        val c1 = activityHrLineColorArgb(b.value, ceiling)
-        val segPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = stroke
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-            shader = LinearGradient(a.x, a.y, b.x, b.y, c0, c1, Shader.TileMode.CLAMP)
+        for (i in 0 until geo.points.lastIndex) {
+            val a = geo.points[i]
+            val b = geo.points[i + 1]
+            val c0 = activityHrLineColorArgb(a.value, ceiling)
+            val c1 = activityHrLineColorArgb(b.value, ceiling)
+            val segPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = hrStroke
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                shader = LinearGradient(a.x, a.y, b.x, b.y, c0, c1, Shader.TileMode.CLAMP)
+            }
+            canvas.drawLine(a.x, a.y, b.x, b.y, segPaint)
         }
-        canvas.drawLine(a.x, a.y, b.x, b.y, segPaint)
     }
     canvas.restore()
 
-    geo.maxPoint?.let { peak ->
-        val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = activityHrLineColorArgb(peak.value, ceiling)
-            style = Paint.Style.FILL
+    if (geo.hasHrSeries) {
+        geo.maxPoint?.let { peak ->
+            val marker = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = activityHrLineColorArgb(peak.value, ceiling)
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(peak.x, peak.y, activityHrMarkerRadiusPx(geo.heightPx), marker)
         }
-        canvas.drawCircle(peak.x, peak.y, activityHrMarkerRadiusPx(geo.heightPx), marker)
     }
     return bmp
 }

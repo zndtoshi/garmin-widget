@@ -451,6 +451,24 @@ internal fun chartContentDescription(
 ): String =
     "Body Battery ${bodyBattery ?: "—"} and Stress ${stress ?: "—"} chart with $bodyPoints battery points and $stressPoints stress points"
 
+internal fun activityChartContentDescription(
+    hrTimeline: List<com.zndtoshi.garminwidget.data.ActivityHeartRatePoint>,
+    speedTimeline: List<com.zndtoshi.garminwidget.data.ActivitySpeedPoint>,
+): String {
+    val parts = mutableListOf<String>()
+    if (hrTimeline.size >= 2) parts += "heart rate"
+    if (speedTimeline.size >= 2) {
+        val maxMps = speedTimeline.maxOfOrNull { it.speedMetersPerSecond } ?: 0.0
+        val maxKmh = maxMps * 3.6
+        parts += "speed up to ${String.format(java.util.Locale.US, "%.0f", maxKmh)} km/h"
+    }
+    return if (parts.isEmpty()) {
+        "Activity chart"
+    } else {
+        "Activity chart with ${parts.joinToString(" and ")}"
+    }
+}
+
 internal fun sleepRingContentDescription(score: Int?, hasStages: Boolean): String =
     if (hasStages) "Sleep ring with score ${score ?: 0}" else "Sleep ring with no stage data"
 

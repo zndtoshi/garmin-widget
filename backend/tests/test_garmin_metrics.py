@@ -15,18 +15,21 @@ from pydantic import ValidationError
 
 from app.garmin.adapter import (
     GarminMetricsAdapter,
+    _activity_speed_mps,
     _as_gmt_datetime,
     _as_int,
     _as_non_negative_int,
     _downsample,
     _extract_activity_hr_timeline,
     _extract_activity_id,
+    _extract_activity_speed_timeline,
     _extract_body_battery_timeline,
     _extract_last_activity,
     _extract_sleep_stages,
     _extract_stress_timeline,
     _sort_dedup_and_downsample,
     _sort_dedup_downsample_hr,
+    _sort_dedup_downsample_speed,
 )
 from app.garmin.dates import calendar_date_for_timezone, parse_metric_date
 from app.garmin.errors import (
@@ -38,6 +41,7 @@ from app.garmin.errors import (
 from app.garmin.normalize import normalize_daily_metrics
 from app.models.domain import (
     ActivityHeartRatePointInternal,
+    ActivitySpeedPointInternal,
     DailyMetrics,
     HrvTrendPointInternal,
     SleepStagesInternal,
@@ -45,6 +49,7 @@ from app.models.domain import (
 )
 from app.models.widget import (
     ActivityHeartRatePoint,
+    ActivitySpeedPoint,
     HrvTrendPoint,
     LastActivity,
     RefreshStatus,
@@ -1155,6 +1160,10 @@ def test_activity_hr_timeline_from_details_fixture() -> None:
     assert metrics.last_activity.heart_rate_timeline[0].elapsed_seconds == 0
     assert metrics.last_activity.heart_rate_timeline[0].heart_rate == 112
     assert metrics.last_activity.heart_rate_timeline[-1].heart_rate == 150
+    assert metrics.last_activity.speed_timeline is not None
+    assert len(metrics.last_activity.speed_timeline) == 10
+    assert metrics.last_activity.speed_timeline[0].speed_meters_per_second == 0.0
+    assert metrics.last_activity.speed_timeline[3].speed_meters_per_second == 12.5
     detail_calls = [c for c in client.calls if c[0] == "get_activity_details"]
     assert len(detail_calls) == 1
     assert detail_calls[0][1] == (424242, 2000, 0)
@@ -1163,11 +1172,14 @@ def test_activity_hr_timeline_from_details_fixture() -> None:
         refresh_status=RefreshStatus.SUCCESS, stale=False,
     ).model_dump_json(by_alias=True)
     assert "heartRateTimeline" in dumped
+    assert "speedTimeline" in dumped
     assert "activityId" not in dumped
     assert "424242" not in dumped
     assert "directLatitude" not in dumped
+    assert "directSpeed" not in dumped
     assert "44.1" not in dumped
-
+    assert "directVerticalSpeed" not in dumped
+    assert "directCadence" not in dumped
 
 def test_activity_hr_call_budget_initial_backfill_with_details() -> None:
     hrv_by_date = {}
@@ -1344,3 +1356,133 @@ def test_activity_hr_timeline_snapshot_round_trip(tmp_path: Path) -> None:
     dumped = loaded.payload.model_dump_json(by_alias=True)
     assert "heartRateTimeline" in dumped
     assert "activityId" not in dumped
+
+# --- Activity speed timeline ---
+
+
+def test_activity_speed_timeline_from_details_fixture() -> None:
+    activities = _load_fixture("activities_complete.json")
+    assert isinstance(activities, list)
+    activities[0]["activityId"] = 424242
+    client = _complete_client(
+        activities=activities,
+        activity_details=_load_fixture("activity_details_hr.json"),
+    )
+    metrics = GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
+    assert metrics.last_activity is not None
+    speed = metrics.last_activity.speed_timeline
+    assert speed is not None
+    assert speed[0].elapsed_seconds == 0
+    assert speed[0].speed_meters_per_second == 0.0
+    assert max(p.speed_meters_per_second for p in speed) == 12.5
+    assert len([c for c in client.calls if c[0] == "get_activity_details"]) == 1
+
+
+def test_activity_speed_ignores_vertical_and_cadence() -> None:
+    details = {
+        "metricDescriptors": [
+            {"key": "sumElapsedDuration", "metricsIndex": 0},
+            {"key": "directVerticalSpeed", "metricsIndex": 1},
+            {"key": "directCadence", "metricsIndex": 2},
+        ],
+        "activityDetailMetrics": [
+            {"metrics": [0, 1.2, 90]},
+            {"metrics": [30, 0.8, 92]},
+        ],
+    }
+    assert _extract_activity_speed_timeline(details) is None
+
+
+def test_activity_speed_hr_independence() -> None:
+    details = {
+        "metricDescriptors": [
+            {"key": "sumElapsedDuration", "metricsIndex": 0},
+            {"key": "directSpeed", "metricsIndex": 1},
+        ],
+        "activityDetailMetrics": [
+            {"metrics": [0, 2.0]},
+            {"metrics": [30, 3.0]},
+        ],
+    }
+    assert _extract_activity_hr_timeline(details) is None
+    speed = _extract_activity_speed_timeline(details)
+    assert speed is not None
+    assert len(speed) == 2
+
+    hr_only = {
+        "metricDescriptors": [
+            {"key": "sumElapsedDuration", "metricsIndex": 0},
+            {"key": "directHeartRate", "metricsIndex": 1},
+        ],
+        "activityDetailMetrics": [
+            {"metrics": [0, 120]},
+            {"metrics": [30, 130]},
+        ],
+    }
+    assert _extract_activity_speed_timeline(hr_only) is None
+    assert _extract_activity_hr_timeline(hr_only) is not None
+
+
+def test_activity_speed_rejects_invalid_values() -> None:
+    assert _activity_speed_mps({"directSpeed": True}) is None
+    assert _activity_speed_mps({"directSpeed": -1}) is None
+    assert _activity_speed_mps({"directSpeed": float("nan")}) is None
+    assert _activity_speed_mps({"directSpeed": float("inf")}) is None
+    assert _activity_speed_mps({"directSpeed": 151}) is None
+    assert _activity_speed_mps({"directSpeed": 0}) == 0.0
+    assert _activity_speed_mps({"directSpeed": 150}) == 150.0
+    assert _activity_speed_mps({"directGroundSpeed": 5.5}) == 5.5
+
+
+def test_activity_speed_sort_dedupe_prefers_spike() -> None:
+    points = [
+        ActivitySpeedPointInternal(elapsed_seconds=30, speed_meters_per_second=2.0),
+        ActivitySpeedPointInternal(elapsed_seconds=0, speed_meters_per_second=1.0),
+        ActivitySpeedPointInternal(elapsed_seconds=30, speed_meters_per_second=9.0),
+        ActivitySpeedPointInternal(elapsed_seconds=60, speed_meters_per_second=3.0),
+    ]
+    result = _sort_dedup_downsample_speed(points, max_points=48)
+    assert [p.elapsed_seconds for p in result] == [0, 30, 60]
+    assert result[1].speed_meters_per_second == 9.0
+
+
+def test_activity_speed_downsample_keeps_first_last_and_brief_max() -> None:
+    points = [
+        ActivitySpeedPointInternal(elapsed_seconds=i, speed_meters_per_second=2.0)
+        for i in range(80)
+    ]
+    points[40] = ActivitySpeedPointInternal(elapsed_seconds=40, speed_meters_per_second=40.0)
+    result = _sort_dedup_downsample_speed(points, max_points=48)
+    assert len(result) == 48
+    assert result[0].elapsed_seconds == 0
+    assert result[-1].elapsed_seconds == 79
+    assert max(p.speed_meters_per_second for p in result) == 40.0
+    assert any(p.elapsed_seconds == 40 for p in result)
+
+
+def test_activity_speed_public_model_bounds() -> None:
+    with pytest.raises(ValidationError):
+        ActivitySpeedPoint(elapsedSeconds=-1, speedMetersPerSecond=1.0)
+    with pytest.raises(ValidationError):
+        ActivitySpeedPoint(elapsedSeconds=0, speedMetersPerSecond=-0.1)
+    with pytest.raises(ValidationError):
+        ActivitySpeedPoint(elapsedSeconds=0, speedMetersPerSecond=150.1)
+    overlong = [
+        ActivitySpeedPoint(elapsedSeconds=i, speedMetersPerSecond=1.0) for i in range(49)
+    ]
+    with pytest.raises(ValidationError):
+        LastActivity(speedTimeline=overlong)
+
+
+def test_activity_speed_details_unavailable_keeps_summary() -> None:
+    activities = _load_fixture("activities_complete.json")
+    assert isinstance(activities, list)
+    activities[0]["activityId"] = 55
+    client = _complete_client(
+        activities=activities,
+        errors={"get_activity_details": GarminConnectConnectionError("404")},
+    )
+    metrics = GarminMetricsAdapter(client).fetch_daily_metrics(date(2026, 7, 28))
+    assert metrics.last_activity is not None
+    assert metrics.last_activity.speed_timeline is None
+    assert metrics.last_activity.average_speed_meters_per_second is not None

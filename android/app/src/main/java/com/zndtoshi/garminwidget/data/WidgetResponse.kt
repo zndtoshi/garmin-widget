@@ -43,6 +43,11 @@ data class ActivityHeartRatePoint(
     val heartRate: Int,
 )
 
+data class ActivitySpeedPoint(
+    val elapsedSeconds: Int,
+    val speedMetersPerSecond: Double,
+)
+
 data class LastActivity(
     val name: String? = null,
     val typeKey: String? = null,
@@ -59,6 +64,7 @@ data class LastActivity(
     val anaerobicTrainingEffect: Double? = null,
     val trainingLoad: Double? = null,
     val heartRateTimeline: List<ActivityHeartRatePoint> = emptyList(),
+    val speedTimeline: List<ActivitySpeedPoint> = emptyList(),
 )
 
 data class WidgetResponse(
@@ -153,6 +159,18 @@ data class WidgetResponse(
                             if (hr !in ACTIVITY_HR_MIN..ACTIVITY_HR_MAX) return@mapNotNull null
                             ActivityHeartRatePoint(elapsedSeconds = elapsed, heartRate = hr)
                         }.sortedBy { point -> point.elapsedSeconds }.take(ACTIVITY_HR_TIMELINE_MAX),
+                        speedTimeline = it.optArrayObjects("speedTimeline").mapNotNull { point ->
+                            val elapsed = point.optNonNegativeIntOrNull("elapsedSeconds") ?: return@mapNotNull null
+                            val speed = point.optDoubleOrNull("speedMetersPerSecond") ?: return@mapNotNull null
+                            if (!speed.isFinite()) return@mapNotNull null
+                            if (speed < 0.0 || speed > ACTIVITY_SPEED_MAX_MPS) return@mapNotNull null
+                            ActivitySpeedPoint(elapsedSeconds = elapsed, speedMetersPerSecond = speed)
+                        }.sortedWith(
+                            compareBy<ActivitySpeedPoint> { point -> point.elapsedSeconds }
+                                .thenByDescending { point -> point.speedMetersPerSecond },
+                        )
+                            .distinctBy { point -> point.elapsedSeconds }
+                            .take(ACTIVITY_SPEED_TIMELINE_MAX),
                     )
                 }?.takeUnless { activity ->
                     listOf(
@@ -170,7 +188,9 @@ data class WidgetResponse(
                         activity.aerobicTrainingEffect,
                         activity.anaerobicTrainingEffect,
                         activity.trainingLoad,
-                    ).all { field -> field == null } && activity.heartRateTimeline.isEmpty()
+                    ).all { field -> field == null } &&
+                        activity.heartRateTimeline.isEmpty() &&
+                        activity.speedTimeline.isEmpty()
                 },
             )
         }
@@ -178,7 +198,8 @@ data class WidgetResponse(
         private const val ACTIVITY_HR_MIN = 20
         private const val ACTIVITY_HR_MAX = 250
         private const val ACTIVITY_HR_TIMELINE_MAX = 48
-
+        private const val ACTIVITY_SPEED_TIMELINE_MAX = 48
+        private const val ACTIVITY_SPEED_MAX_MPS = 150.0
         private fun JSONObject.optIntOrNull(key: String): Int? =
             if (has(key) && !isNull(key)) runCatching { getInt(key) }.getOrNull() else null
 
