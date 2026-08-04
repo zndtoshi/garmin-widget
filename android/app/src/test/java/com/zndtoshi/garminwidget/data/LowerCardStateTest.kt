@@ -147,13 +147,23 @@ class LowerCardStateTest {
     }
 
     @Test
-    fun toggle_skips_dismissed_or_missing_alternate() {
+    fun toggle_manually_reopens_dismissed_alternate_but_skips_missing_data() {
         val data = response()
         val dismissedActivity = LowerCardState(
             selected = LowerCardKind.BODY_BATTERY,
             dismissedActivityIdentity = activityIdentity(data.lastActivity),
         )
-        assertEquals(dismissedActivity, toggleLowerCard(data, dismissedActivity))
+        val reopenedActivity = toggleLowerCard(data, dismissedActivity)
+        assertEquals(LowerCardKind.ACTIVITY, reopenedActivity.selected)
+        assertNull(reopenedActivity.dismissedActivityIdentity)
+
+        val dismissedMorning = LowerCardState(
+            selected = LowerCardKind.ACTIVITY,
+            dismissedMorningIdentity = morningIdentity(data),
+        )
+        val reopenedMorning = toggleLowerCard(data, dismissedMorning)
+        assertEquals(LowerCardKind.BODY_BATTERY, reopenedMorning.selected)
+        assertNull(reopenedMorning.dismissedMorningIdentity)
 
         val noActivity = response(activityStartedAt = null, activityName = null)
         val fromBb = LowerCardState(selected = LowerCardKind.BODY_BATTERY)

@@ -87,14 +87,23 @@ internal fun toggleLowerCard(
     state: LowerCardState,
 ): LowerCardState {
     val visible = resolveVisibleLowerCard(response, state)
-    val alternate = when (visible) {
-        LowerCardKind.BODY_BATTERY ->
-            if (isActivityEligible(response, state)) LowerCardKind.ACTIVITY else null
-        LowerCardKind.ACTIVITY ->
-            if (isMorningEligible(response, state)) LowerCardKind.BODY_BATTERY else null
-        LowerCardKind.NONE -> null
-    } ?: return state
-    return state.copy(selected = alternate)
+    return when (visible) {
+        LowerCardKind.BODY_BATTERY -> {
+            if (activityIdentity(response?.lastActivity) == null) state else state.copy(
+                selected = LowerCardKind.ACTIVITY,
+                // Dismissal suppresses automatic reopening, not an explicit user cycle.
+                dismissedActivityIdentity = null,
+            )
+        }
+        LowerCardKind.ACTIVITY -> {
+            if (morningIdentity(response) == null) state else state.copy(
+                selected = LowerCardKind.BODY_BATTERY,
+                // Dismissal suppresses automatic reopening, not an explicit user cycle.
+                dismissedMorningIdentity = null,
+            )
+        }
+        LowerCardKind.NONE -> state
+    }
 }
 
 internal fun dismissLowerCard(
