@@ -485,7 +485,12 @@ private fun BodyBatteryStrip(
         zoneId = zone,
         timelineRange = dayRange,
     )
-    val stress = filterTimelineForRange(rawStress, dayRange)
+    val stress = appendCurrentStressPoint(
+        points = filterTimelineForRange(rawStress, dayRange),
+        currentValue = data.stress,
+        refreshedAt = data.refreshedAt,
+        timelineRange = dayRange,
+    )
     val header = bodyBatteryHeaderPresentation(data.bodyBattery, showTitle = true)
     Box(
         modifier = GlanceModifier

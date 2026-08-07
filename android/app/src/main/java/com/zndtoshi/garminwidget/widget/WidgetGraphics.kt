@@ -808,7 +808,17 @@ internal fun drawCombinedChartBitmap(
         for ((index, point) in geometry.stressPoints.withIndex()) {
             barPaint.color = stressBarColorArgb(point.value)
             val barHalf = stressBarHalfWidthPx(geometry.stressPoints, index)
-            canvas.drawRect(point.x - barHalf, point.y, point.x + barHalf, geometry.bottom, barPaint)
+            var barLeft = max(geometry.left, point.x - barHalf)
+            var barRight = min(geometry.right, point.x + barHalf)
+            if (index == 0 && point.x <= geometry.left + 0.5f) {
+                barLeft = geometry.left
+                barRight = min(geometry.right, geometry.left + max(1f, barHalf * 2f))
+            }
+            if (index == geometry.stressPoints.lastIndex && point.x >= geometry.right - 0.5f) {
+                barRight = geometry.right
+                barLeft = max(geometry.left, geometry.right - max(1f, barHalf * 2f))
+            }
+            canvas.drawRect(barLeft, point.y, barRight, geometry.bottom, barPaint)
         }
     }
 

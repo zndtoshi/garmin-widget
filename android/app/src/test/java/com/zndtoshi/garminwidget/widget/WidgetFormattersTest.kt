@@ -421,6 +421,26 @@ class WidgetFormattersTest {
     }
 
     @Test
+    fun `daily timeline and current stress preserve both day boundaries`() {
+        val start = Instant.parse("2026-08-06T22:00:00Z")
+        val points = List(DAILY_TIMELINE_MAX_POINTS) { index ->
+            TimelinePoint(start.plusSeconds(index * 180L), 10 + index % 40)
+        }
+        val refreshed = start.plusSeconds(12 * 60 * 60L)
+        val appended = appendCurrentStressPoint(
+            points = points,
+            currentValue = 24,
+            refreshedAt = refreshed.toString(),
+            timelineRange = start to start.plusSeconds(24 * 60 * 60L),
+        )
+
+        assertEquals(DAILY_TIMELINE_MAX_POINTS, appended.size)
+        assertEquals(start, appended.first().timestamp)
+        assertEquals(refreshed, appended.last().timestamp)
+        assertEquals(24, appended.last().value)
+    }
+
+    @Test
     fun `formats activity metrics`() {
         assertEquals("5:00 /km", formatPace(5000.0, 1500))
         assertEquals("28.8 km/h", formatSpeedMps(8.0))

@@ -91,11 +91,14 @@ internal fun pickRecentHrvPoints(
 internal const val DAILY_TIMELINE_MAX_POINTS = 192
 internal const val ACTIVITY_TIMELINE_MAX_POINTS = 240
 
-internal fun normalizeDailyTimeline(points: List<TimelinePoint>): List<TimelinePoint> = points
-    .filter { it.value in 0..100 }
-    .sortedWith(compareBy<TimelinePoint> { it.timestamp }.thenByDescending { it.value })
-    .distinctBy { it.timestamp }
-    .takeLast(DAILY_TIMELINE_MAX_POINTS)
+internal fun normalizeDailyTimeline(points: List<TimelinePoint>): List<TimelinePoint> {
+    val normalized = points
+        .filter { it.value in 0..100 }
+        .sortedWith(compareBy<TimelinePoint> { it.timestamp }.thenByDescending { it.value })
+        .distinctBy { it.timestamp }
+    if (normalized.size <= DAILY_TIMELINE_MAX_POINTS) return normalized
+    return listOf(normalized.first()) + normalized.drop(1).takeLast(DAILY_TIMELINE_MAX_POINTS - 1)
+}
 
 internal fun filterTimelineForResponseDate(
     points: List<TimelinePoint>,
@@ -128,7 +131,25 @@ internal fun appendCurrentBodyBatteryPoint(
 
     val sorted = normalizeDailyTimeline(points)
     if (sorted.lastOrNull()?.timestamp?.let { !timestamp.isAfter(it) } == true) return sorted
-    return (sorted + TimelinePoint(timestamp, value)).takeLast(DAILY_TIMELINE_MAX_POINTS)
+    return normalizeDailyTimeline(sorted + TimelinePoint(timestamp, value))
+}
+
+internal fun appendCurrentStressPoint(
+    points: List<TimelinePoint>,
+    currentValue: Int?,
+    refreshedAt: String?,
+    timelineRange: Pair<Instant, Instant>? = null,
+): List<TimelinePoint> {
+    val value = currentValue?.takeIf { it in 0..100 } ?: return points
+    val timestamp = runCatching { Instant.parse(refreshedAt) }.getOrNull() ?: return points
+    if (timelineRange != null &&
+        (timestamp.isBefore(timelineRange.first) || !timestamp.isBefore(timelineRange.second))
+    ) {
+        return points
+    }
+    val sorted = normalizeDailyTimeline(points)
+    if (sorted.lastOrNull()?.timestamp?.let { !timestamp.isAfter(it) } == true) return sorted
+    return normalizeDailyTimeline(sorted + TimelinePoint(timestamp, value))
 }
 
 internal fun timelineDayRange(responseDate: String?, zoneId: ZoneId): Pair<Instant, Instant>? {
